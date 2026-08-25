@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Nash-DRL"
+version = "0.1.0"
+description = "Nash-DRL"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+authors = [{name = "Ali Samanipour"}]
+license = {text = "Research Use"}
+dependencies = [
+    "numpy>=1.26,<3",
+    "torch>=2.3,<3",
+    "PyYAML>=6.0,<7",
+    "pydantic>=2.7,<3",
+    "matplotlib>=3.8,<4",
+    "networkx>=3.2,<4",
+    "tqdm>=4.66,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-cov>=5,<8",
+    "ruff>=0.6,<1",
+    "mypy>=1.10,<2",
+]
+
+[project.scripts]
+nash-drl-train = "cli:train"
+nash-drl-evaluate = "cli:evaluate"
+nash-drl-infer = "cli:infer"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

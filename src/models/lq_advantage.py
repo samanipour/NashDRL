@@ -1,0 +1,1 @@
+"""lq_advantage module."""

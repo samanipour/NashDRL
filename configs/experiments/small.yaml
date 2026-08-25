@@ -1,0 +1,13 @@
+network:
+  hidden_dim: 32
+  deep_set_dim: 64
+  actor_hidden_layers: 4
+  critic_hidden_layers: 4
+
+training:
+  gamma: 0.99
+  actor_lr: 0.0003
+  critic_lr: 0.0003
+  exploration_sigma: 0.1
+  target_update_interval: 50
+  device: cpu

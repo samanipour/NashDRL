@@ -1,0 +1,27 @@
+network:
+  hidden_dim: 32
+  deep_set_dim: 64
+  actor_hidden_layers: 4
+  critic_hidden_layers: 4
+
+environment:
+  energy_rate_kwh_per_km: 1.0
+  charging_overhead: 6.0
+  charging_fixed_cost: 1.0
+  charging_floor_price: 0.0
+  congestion_alpha: 0.15
+  congestion_beta: 4.0
+  max_steps: 100
+
+reward:
+  travel_time_weight: 1.0
+  charging_cost_weight: 1.0
+  budget_penalty: 100.0
+
+training:
+  gamma: 0.99
+  actor_lr: 0.0003
+  critic_lr: 0.0003
+  exploration_sigma: 0.1
+  target_update_interval: 100
+  device: cpu

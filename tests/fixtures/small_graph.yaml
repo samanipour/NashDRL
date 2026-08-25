@@ -1,0 +1,7 @@
+num_nodes: 4
+edges:
+  - {id: 0, source: 0, destination: 1, length_km: 10.0, capacity_vph: 100.0}
+  - {id: 1, source: 1, destination: 3, length_km: 20.0, capacity_vph: 80.0}
+  - {id: 2, source: 0, destination: 2, length_km: 15.0, capacity_vph: 120.0}
+  - {id: 3, source: 2, destination: 3, length_km: 25.0, capacity_vph: 60.0}
+  - {id: 4, source: 1, destination: 2, length_km: 5.0, capacity_vph: 50.0}
