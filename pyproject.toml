@@ -3,12 +3,12 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Nash-DRL"
-version = "0.1.0"
-description = "Nash-DRL"
+name = "nash-drl"
+version = "0.2.0"
+description = "Nash-DRL research environment with reproducible mock-data generation and SUMO/TraCI simulation."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
-authors = [{name = "Ali Samanipour"}]
+authors = [{name = "Nash-DRL Research Team"}]
 license = {text = "Research Use"}
 dependencies = [
     "numpy>=1.26,<3",
@@ -18,20 +18,20 @@ dependencies = [
     "matplotlib>=3.8,<4",
     "networkx>=3.2,<4",
     "tqdm>=4.66,<5",
+    "traci==1.27.1",
+    "sumolib==1.27.1",
+    "salabim>=26.0.8,<27",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8,<9",
-    "pytest-cov>=5,<8",
-    "ruff>=0.6,<1",
-    "mypy>=1.10,<2",
-]
+dev = ["pytest>=8,<9", "pytest-cov>=5,<8", "ruff>=0.6,<1", "mypy>=1.10,<2"]
 
 [project.scripts]
-nash-drl-train = "cli:train"
-nash-drl-evaluate = "cli:evaluate"
-nash-drl-infer = "cli:infer"
+nash-drl-simulate = "nash_drl.cli:simulate"
+nash-drl-train = "nash_drl.cli:train"
+nash-drl-evaluate = "nash_drl.cli:evaluate"
+nash-drl-infer = "nash_drl.cli:infer"
+nash-drl-visualize = "nash_drl.cli:visualize"
 
 [tool.setuptools.packages.find]
 where = ["src"]
