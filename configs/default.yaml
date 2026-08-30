@@ -1,3 +1,50 @@
+project:
+  name: nash-drl
+  seed: 42
+
+simulation:
+  mode: mock                       # mock | real
+  visualization: false
+  generate_analytic_report: true
+  output_dir: outputs/demo
+  dataset_path: datasets/generated/mock_seed_42/dataset.json
+  backend: traci
+  sumo:
+    binary: auto                   # auto | sumo | sumo-gui | absolute path
+    step_length_s: 1.0
+    end_time_s: 300
+    teleport_time_s: 120
+    seed: 42
+    default_edge_speed_kmh: 50.0
+    vehicle_departure_gap_s: 2.0
+    allow_turnarounds: true
+  salabim:
+    enabled: true
+    replay_speed: 1.0
+
+mock_data:
+  seed: 42
+  num_vehicles: 12
+  min_trips_per_vehicle: 1
+  max_trips_per_vehicle: 3
+  graph_nodes: 12
+  graph_extra_edges: 10
+  road_min_length_km: 1.0
+  road_max_length_km: 8.0
+  capacity_min_vph: 20
+  capacity_max_vph: 80
+  speed_min_kmh: 30.0
+  speed_max_kmh: 70.0
+  budget_min: 75.0
+  budget_max: 300.0
+  energy_rate_kwh_per_km: 1.0
+  charging_overhead: 6.0
+  charging_fixed_cost: 1.0
+  charging_floor_price: 0.0
+  congestion_alpha: 0.15
+  congestion_beta: 4.0
+  vehicle_departure_gap_s: 2.0
+
 network:
   hidden_dim: 32
   deep_set_dim: 64
@@ -11,7 +58,7 @@ environment:
   charging_floor_price: 0.0
   congestion_alpha: 0.15
   congestion_beta: 4.0
-  max_steps: 100
+  max_steps: 300
 
 reward:
   travel_time_weight: 1.0

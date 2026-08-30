@@ -1,1 +1,5 @@
-# Configuration placeholder. See docs/CONFIGURATION.md.
+network:
+  hidden_dim: 32
+  deep_set_dim: 64
+  actor_hidden_layers: 4
+  critic_hidden_layers: 4

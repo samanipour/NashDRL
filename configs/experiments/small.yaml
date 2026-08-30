@@ -1,13 +1,30 @@
-network:
-  hidden_dim: 32
-  deep_set_dim: 64
-  actor_hidden_layers: 4
-  critic_hidden_layers: 4
-
-training:
-  gamma: 0.99
-  actor_lr: 0.0003
-  critic_lr: 0.0003
-  exploration_sigma: 0.1
-  target_update_interval: 50
-  device: cpu
+project:
+  seed: 42
+simulation:
+  mode: mock
+  visualization: false
+  generate_analytic_report: true
+  output_dir: outputs/small_demo
+  sumo:
+    binary: auto
+    step_length_s: 1.0
+    end_time_s: 180
+    seed: 42
+    default_edge_speed_kmh: 50.0
+    vehicle_departure_gap_s: 2.0
+    allow_turnarounds: true
+mock_data:
+  seed: 42
+  num_vehicles: 6
+  min_trips_per_vehicle: 1
+  max_trips_per_vehicle: 2
+  graph_nodes: 9
+  graph_extra_edges: 5
+  road_min_length_km: 1.0
+  road_max_length_km: 4.0
+  capacity_min_vph: 30
+  capacity_max_vph: 80
+  speed_min_kmh: 35.0
+  speed_max_kmh: 60.0
+  budget_min: 80.0
+  budget_max: 240.0

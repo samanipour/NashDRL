@@ -1,1 +1,16 @@
-# Configuration placeholder. See docs/CONFIGURATION.md.
+environment:
+  energy_rate_kwh_per_km: 1.0
+  charging_overhead: 6.0
+  charging_fixed_cost: 1.0
+  charging_floor_price: 0.0
+  congestion_alpha: 0.15
+  congestion_beta: 4.0
+  max_steps: 300
+
+simulation:
+  backend: traci
+  sumo:
+    binary: auto
+    step_length_s: 1.0
+    end_time_s: 300
+    teleport_time_s: 120

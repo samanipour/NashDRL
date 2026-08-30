@@ -1,1 +1,30 @@
-# Large experiment placeholder.
+project:
+  seed: 123
+simulation:
+  mode: mock
+  visualization: false
+  generate_analytic_report: true
+  output_dir: outputs/large_demo
+  sumo:
+    binary: auto
+    step_length_s: 1.0
+    end_time_s: 600
+    seed: 123
+    default_edge_speed_kmh: 50.0
+    vehicle_departure_gap_s: 2.0
+    allow_turnarounds: true
+mock_data:
+  seed: 123
+  num_vehicles: 50
+  min_trips_per_vehicle: 1
+  max_trips_per_vehicle: 4
+  graph_nodes: 40
+  graph_extra_edges: 55
+  road_min_length_km: 0.5
+  road_max_length_km: 10.0
+  capacity_min_vph: 15
+  capacity_max_vph: 150
+  speed_min_kmh: 25.0
+  speed_max_kmh: 80.0
+  budget_min: 50.0
+  budget_max: 500.0
