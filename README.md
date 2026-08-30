@@ -416,6 +416,39 @@ src/nash_drl/
 
 The current simulation demo uses `domain`, `data`, `environment`, `routing`, `evaluation`, `visualization`, and `utils`. It does not invoke the learning components.
 
+
+### Neural-network implementation status
+
+The current `models/` implementation now matches the Section 4 architecture for simulation-independent neural inference:
+
+```text
+Invariant [N,N-1,F] ──> shared Deep Sets phi ──> sum ──> crowd [N,D]
+                                                        │
+Non-invariant [N,F+E] ──> projection ────────────────┤
+                                                        ▼
+                                                concatenate [N,2D]
+                                                        │
+                                                        ▼
+                                           4 × Linear(32) + SiLU
+                                                        │
+                                                        ▼
+                                            Actor: [5,N,E]
+
+Invariant [N,N-1,F] ──> same Deep Sets idea ──> crowd [N,D]
+                                                        │
+Non-invariant [N,F+E] ──> flatten ────────────────────┤
+                                                        ▼
+                                                  value trunk
+                                                        │
+                                                        ▼
+                                                   Critic [N]
+                                                        │
+                                                        ▼
+                                         Target Critic = hard copy
+```
+
+The Actor exposes named tensors `mu`, `p11`, `p12`, `p22`, and `psi`; `p11` and `p22` are strictly positive. The Target Critic is frozen and can only be synchronized with `hard_update_from(...)`. The models also accept an optional leading batch dimension for later training integration.
+
 ## Research model correspondence
 
 The road network is represented as a directed graph, vehicles are heterogeneous, edge flow drives both charging price and congestion, and reward depends on travel time, charging cost, and the hard budget constraint. The neural-network state/action structures remain available for the later DRL stage: CSR map, `[N,F]` agent features, `[N,N-1,F]` permutation-invariant input, `[N,F+E]` non-invariant input, and `[N,E]` action weights.
