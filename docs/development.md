@@ -1,103 +1,57 @@
 # Development Guide
 
-## 1. Implementation order
+## Install
 
-### Stage 1 — Domain and data
-
-Implement and test:
-
-- graph entities
-- vehicle/trip entities
-- CSR map construction and lookup
-- state/action/transition containers
-
-### Stage 2 — Environment equations
-
-Implement and test:
-
-- charging price
-- energy/charging cost
-- congestion
-- travel time
-- budget-based reward
-
-### Stage 3 — Routing
-
-Implement:
-
-- route constraints
-- deterministic Dijkstra mapper
-- greedy mapper
-
-### Stage 4 — Features
-
-Implement:
-
-- `[N,F]` agent feature extraction
-- `[E]` edge-flow features
-- `[N,N-1,F]` invariant construction
-- `[N,F+E]` non-invariant construction
-
-### Stage 5 — Networks
-
-Implement and test:
-
-- Deep Sets
-- Actor
-- Critic
-- Target Critic
-- LQ advantage
-
-### Stage 6 — Game logic
-
-Implement and validate the LQ game/Nash calculations supported by the research specification.
-
-### Stage 7 — Training
-
-Connect:
-
-```text
-feature extraction
-→ Actor
-→ action construction
-→ mapper
-→ environment
-→ Critic / Target Critic
-→ losses
-→ optimizer
+```bash
+python -m venv .venv
+# PowerShell
+.venv\\Scripts\\Activate.ps1
+# Linux/macOS
+# source .venv/bin/activate
+pip install -e .
 ```
 
-### Stage 8 — Research experiments
+The project pins TraCI and sumolib to `1.27.1` and requires salabim for the optional replay visualizer. SUMO itself must also be installed separately.
 
-Add reproducible scenarios, baseline methods, evaluation metrics and reports.
+## SUMO environment
 
-## 2. Testing policy
+On Windows, either add the SUMO `bin` directory to `PATH` or set:
 
-Every mathematical component gets at least one deterministic unit test.
+```powershell
+$env:SUMO_HOME = "C:\\Program Files (x86)\\Eclipse\\Sumo"
+```
 
-Integration tests should verify component boundaries rather than exact learned outcomes.
+Verify:
 
-## 3. Debugging strategy
+```powershell
+sumo --version
+netconvert --version
+```
 
-When a training result looks wrong, test in this order:
+The expected target for this repository is SUMO 1.27.1.
 
-1. CSR adjacency and edge IDs.
-2. Route validity.
-3. Edge flow after route selection.
-4. Charging price.
-5. Travel time.
-6. Reward and budget violation logic.
-7. Feature tensor shapes.
-8. Deep Sets permutation invariance.
-9. Actor output shapes and constraints.
-10. Critic/target synchronization.
-11. Losses and optimizer updates.
+## Run the demo
 
-## 4. Coding standards
+```bash
+python scripts/simulate.py --config configs/experiments/small.yaml --mode mock --visualization false --report true
+```
 
-- Python type hints for public interfaces.
-- Small modules with explicit contracts.
-- No hidden global mutable state.
-- No environment calls from model classes.
-- No optimizer logic inside model classes.
-- Keep experimental alternatives behind interfaces or configuration.
+For live GUI:
+
+```bash
+python scripts/simulate.py --config configs/experiments/large.yaml --mode mock --visualization true --report true
+```
+
+## Real data
+
+Set `simulation.mode=real` and `simulation.dataset_path` to a Nash-DRL dataset JSON with the schema produced by `MockDatasetGenerator`.
+
+## Testing
+
+Tests that do not require a local SUMO installation can run everywhere:
+
+```bash
+PYTHONPATH=src python -m pytest -q
+```
+
+SUMO/GUI integration should be tested on the development machine where SUMO 1.27.1 and desktop GUI support are installed.

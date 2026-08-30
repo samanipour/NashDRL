@@ -1,9 +1,10 @@
 # Nash-DRL
 
-Research implementation of the **Nash Deep Reinforcement Learning (Nash-DRL)** framework for multi-agent autonomous electric vehicle (EAV) path planning under hard budget constraints.
+Nash-DRL is a research implementation for multi-agent electric autonomous vehicle routing. This repository currently provides a complete **simulation, environment, reproducible mock-data, SUMO/TraCI integration, and visualization layer**. The DRL learning loop is intentionally not required for the simulation demo stage.
 
-> **Status:** architecture-first research skeleton. The package defines the major domain, state, routing, neural-network, game-theoretic, training, evaluation, and visualization interfaces. Some mathematical components are intentionally left as explicit implementation points rather than being silently invented beyond the current research document.
+## Simulation objective
 
+The simulation layer translates the problem model into a microscopic traffic experiment:
 ## 1. Research scope
 
 The project models a heterogeneous set of autonomous electric vehicles traveling on a directed road network. Each vehicle has an origin/destination sequence, free-flow speed, and budget. Vehicles select routes jointly; shared edge flow affects both congestion/travel time and flow-dependent charging prices. The research objective is to study policies that improve system-level payoff while avoiding hard budget-constraint violations.
@@ -288,7 +289,37 @@ The actual Python rule is simpler:
 - `environment` does not know the Actor/Critic implementation.
 - `training` is the orchestration layer.
 
+
+```text
+Mock/Real Dataset
+      │
+      ▼
+ProblemDefinition
+      │
+      ▼
+SUMO Scenario Builder
+      │
+      ├── network.nod.xml
+      ├── network.edg.xml
+      ├── network.net.xml
+      ├── routes.rou.xml
+      └── simulation.sumocfg
+      │
+      ▼
+SUMO + TraCI
+      │
+      ├── vehicle observations
+      ├── edge observations
+      └── system observations
+      │
+      ├── simulation_trace.csv
+      └── analytical_report.csv
+```
+
+SUMO 1.27.1 is the pinned simulator/client target. TraCI is used as the Python control interface. The current stable release is SUMO 1.27.1 (25 June 2026), and the matching `traci` and `sumolib` Python packages are available as version 1.27.1. The salabim dependency is used for optional trajectory replay/animation. See the project documentation for installation details.
+
 ## 7. Installation
+Install Python dependencies:
 
 ```bash
 python -m venv .venv
@@ -301,9 +332,118 @@ pip install -e .
 
 Development dependencies:
 
+Install SUMO 1.27.1 separately and make sure `sumo`, `sumo-gui`, and `netconvert` are discoverable. Alternatively set `SUMO_HOME` to the SUMO installation directory.
 ```bash
 pip install -e ".[dev]"
 ```
+
+Run the reproducible mock simulation:
+
+```bash
+python scripts/simulate.py --config configs/experiments/small.yaml --mode mock --visualization false --report true
+```
+
+or:
+
+```bash
+nash-drl-simulate --config configs/default.yaml --mode mock --visualization true --report true
+```
+
+The run first creates a deterministic dataset under `datasets/generated/`, then converts that dataset into a SUMO scenario, runs SUMO through TraCI, and finally writes trace/report artifacts under the configured output directory.
+
+## Runtime options
+
+`simulation.mode` has two values:
+
+- `mock`: generate a new reproducible dataset from `mock_data` and use that dataset as the simulator input.
+- `real`: load an existing Nash-DRL dataset JSON from `simulation.dataset_path`.
+
+`simulation.visualization` controls whether `sumo-gui` is used instead of headless `sumo`.
+
+`simulation.generate_analytic_report` controls creation of the consolidated CSV analytical report. The report contains vehicle, edge, trip, and system rows and includes both static entity parameters and dynamic observations collected during the SUMO run.
+
+## Mock dataset generation
+
+The mock generator is deterministic with respect to its configured seed. It creates:
+
+- a strongly connected directed road network;
+- edge length and capacity;
+- heterogeneous vehicles;
+- one to many trips per vehicle;
+- speed and budget parameters;
+- simulation-model parameters.
+
+The generated JSON contains the complete dataset and generator configuration so the experiment is reproducible.
+
+## Output artifacts
+
+A simulation run writes approximately:
+
+```text
+outputs/<run>/
+├── dataset.json
+├── simulation_trace.csv
+├── analytical_report.csv
+├── run_metadata.json
+└── sumo/
+    ├── network.nod.xml
+    ├── network.edg.xml
+    ├── network.net.xml
+    ├── routes.rou.xml
+    └── simulation.sumocfg
+```
+
+`simulation_trace.csv` contains dynamic observations collected through TraCI. `analytical_report.csv` combines vehicle-, edge-, and system-level observations with relevant static entity parameters.
+
+## Architecture
+
+The simulation code is deliberately separated from the DRL code:
+
+```text
+src/nash_drl/
+├── domain/          mathematical problem entities
+├── data/            tensors + dataset generation
+├── environment/     mathematical environment + SUMO execution
+├── routing/         deterministic route mapping
+├── features/        state feature construction
+├── models/          Actor/Critic/Deep Sets/LQ models
+├── game/            game-theoretic mathematics
+├── training/        learning orchestration
+├── evaluation/      metrics and reports
+├── visualization/   visualization and salabim replay
+└── utils/           cross-cutting utilities
+```
+
+The current simulation demo uses `domain`, `data`, `environment`, `routing`, `evaluation`, `visualization`, and `utils`. It does not invoke the learning components.
+
+## Research model correspondence
+
+The road network is represented as a directed graph, vehicles are heterogeneous, edge flow drives both charging price and congestion, and reward depends on travel time, charging cost, and the hard budget constraint. The neural-network state/action structures remain available for the later DRL stage: CSR map, `[N,F]` agent features, `[N,N-1,F]` permutation-invariant input, `[N,F+E]` non-invariant input, and `[N,E]` action weights.
+
+## Real-data mode
+
+A real-data JSON uses the same schema as a generated dataset. A minimal dataset has:
+
+```json
+{
+  "schema_version": 1,
+  "graph": {"num_nodes": 4, "edges": [...]},
+  "vehicles": [
+    {"id": 0, "free_flow_speed_kmh": 60, "budget": 150,
+     "trips": [{"origin": 0, "destination": 3}]}
+  ]
+}
+```
+
+The simulator converts the graph into SUMO node/edge files, builds deterministic routes for all trips, and runs those routes in SUMO. This mode is intended for later replacement of the generated data with actual scenario datasets without changing the simulation runtime.
+
+## Verification
+
+The repository includes unit and integration tests for the mathematical environment, routing, feature extraction, and network components. SUMO-dependent integration tests should be executed on a machine with SUMO 1.27.1 installed.
+
+## Current implementation boundary
+
+No learning or DRL optimization is executed by `scripts/simulate.py`. The route policy used for the demo is deterministic shortest-path routing. The existing Actor/Critic/game/training packages remain available for the subsequent learning stage.
 
 ## 8. Basic commands
 

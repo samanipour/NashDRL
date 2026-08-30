@@ -1,6 +1,5 @@
 # System Architecture
 
-## Purpose
 
 ## 1. System boundaries
 
@@ -12,7 +11,44 @@ The system has five primary boundaries:
 4. **Learning boundary** — Actor, Critic, Target Critic, LQ advantage/game logic and parameter updates.
 5. **Experiment boundary** — configuration, evaluation, reporting, visualization and checkpointing.
 
-## 2. End-to-end data flow
+## Simulation-first architecture
+
+The current implementation adds a fully independent simulation pipeline before DRL learning:
+
+```text
+YAML configuration
+       │
+       ▼
+MockDatasetGenerator ──────► dataset.json
+       │                           │
+       │ real mode ────────────────┘
+       ▼
+ProblemDefinition
+       │
+       ▼
+SumoScenarioBuilder
+       │
+       ├── network.nod.xml
+       ├── network.edg.xml
+       ├── network.net.xml
+       ├── routes.rou.xml
+       └── simulation.sumocfg
+       │
+       ▼
+SUMO / TraCI
+       │
+       ├── vehicle telemetry
+       ├── edge telemetry
+       └── system telemetry
+       │
+       ├── simulation_trace.csv
+       └── analytical_report.csv
+       │
+       ▼
+Salabim replay (optional)
+```
+
+The non-learning demo uses deterministic shortest-path routing from the generated graph. This is explicitly a simulation baseline, not the final Nash policy.
 
 ```text
 Domain objects
