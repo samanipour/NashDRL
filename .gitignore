@@ -1,3 +1,4 @@
 *.pyc
 outputs
 src/nash_drl.egg-info/
+datasets/generated
