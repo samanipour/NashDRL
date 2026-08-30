@@ -1,6 +1,6 @@
-from cli import build_demo_problem
-from environment import EnvironmentConfig, NashEnvironment, RewardConfig, RewardModel
-from features import StateFeatureExtractor
+from nash_drl.cli import build_demo_problem
+from nash_drl.environment import EnvironmentConfig, NashEnvironment, RewardConfig, RewardModel
+from nash_drl.features import StateFeatureExtractor
 
 
 def test_feature_shapes():

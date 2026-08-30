@@ -1,4 +1,4 @@
-from cli import build_trainer
+from nash_drl.cli import build_trainer
 
 
 def test_training_step_runs():

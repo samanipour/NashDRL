@@ -1,9 +1,4 @@
-"""Visualization entry point for Nash-DRL."""
-
-
-def main() -> None:
-    print("Visualization entry point. Implement visualization workflows in nash_drl.visualization.")
-
+from nash_drl.cli import visualize
 
 if __name__ == "__main__":
-    main()
+    visualize()

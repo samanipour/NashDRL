@@ -1,7 +1,7 @@
 import torch
 
-from data import CSRMap
-from domain import DirectedGraph, Edge
+from nash_drl.data import CSRMap
+from nash_drl.domain import DirectedGraph, Edge
 
 
 def test_csr_construction_matches_document_example():
