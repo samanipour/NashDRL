@@ -5,8 +5,7 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from nash_drl.game import LQAdvantage
-from nash_drl.models import ActorOutput
+from nash_drl.models import ActorOutput, LQAdvantage
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +14,7 @@ class LossResult:
     actor_loss: Tensor
     td_error: Tensor
     td_target: Tensor
+    advantage: Tensor
 
 
 def compute_td_target(reward: Tensor, next_value: Tensor, gamma: float, done: Tensor | bool) -> Tensor:
@@ -22,7 +22,7 @@ def compute_td_target(reward: Tensor, next_value: Tensor, gamma: float, done: Te
     return reward + gamma * (1.0 - done_t) * next_value
 
 
-def compute_losses(
+def compute_training_losses(
     value: Tensor,
     target_value: Tensor,
     reward: Tensor,
@@ -33,8 +33,17 @@ def compute_losses(
 ) -> LossResult:
     td_target = compute_td_target(reward, target_value, gamma, done)
     advantage = LQAdvantage()(actor_output, action)
-    predicted = value + advantage
-    td_error = predicted - td_target
+
+    # Critic update learns V(x) toward r + gamma V_slow(x').
     critic_loss = 0.5 * (value - td_target.detach()).square().mean()
+
+    # Actor update treats the Critic/target terms as constants and learns through A(x,u).
+    predicted_q = value.detach() + advantage
+    td_error = predicted_q - td_target.detach()
     actor_loss = 0.5 * td_error.square().mean()
-    return LossResult(critic_loss, actor_loss, td_error, td_target)
+    return LossResult(critic_loss, actor_loss, td_error, td_target, advantage)
+
+
+# Backward-compatible alias.
+def compute_losses(*args, **kwargs) -> LossResult:
+    return compute_training_losses(*args, **kwargs)

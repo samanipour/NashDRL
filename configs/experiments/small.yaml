@@ -1,18 +1,52 @@
 project:
   seed: 42
+
+training:
+  mode: mock
+  episodes: 3
+  gamma: 0.99
+  actor_lr: 0.0003
+  critic_lr: 0.0003
+  exploration_sigma: 0.10
+  target_update_interval: 10
+  device: cpu
+  seed: 42
+  output_dir: outputs/training_small
+  visualization: false
+  save_checkpoints: true
+  checkpoint_interval: 2
+
+evaluation:
+  episodes: 2
+  output_dir: outputs/test_small
+  visualization: false
+
+environment:
+  energy_rate_kwh_per_km: 1.0
+  charging_overhead: 6.0
+  charging_fixed_cost: 1.0
+  charging_floor_price: 0.0
+  congestion_alpha: 0.15
+  congestion_beta: 4.0
+
+reward:
+  travel_time_weight: 1.0
+  charging_cost_weight: 1.0
+  budget_penalty: 100.0
+
 simulation:
   mode: mock
   visualization: false
-  generate_analytic_report: true
-  output_dir: outputs/small_demo
   sumo:
     binary: auto
     step_length_s: 1.0
     end_time_s: 180
+    teleport_time_s: 120
     seed: 42
     default_edge_speed_kmh: 50.0
     vehicle_departure_gap_s: 2.0
     allow_turnarounds: true
+
 mock_data:
   seed: 42
   num_vehicles: 6
@@ -22,9 +56,14 @@ mock_data:
   graph_extra_edges: 5
   road_min_length_km: 1.0
   road_max_length_km: 4.0
+  road_length_std_km: 0.7
   capacity_min_vph: 30
   capacity_max_vph: 80
+  capacity_std_vph: 12
   speed_min_kmh: 35.0
   speed_max_kmh: 60.0
+  speed_std_kmh: 7.0
   budget_min: 80.0
   budget_max: 240.0
+  budget_std: 30.0
+  trip_count_std: 0.8

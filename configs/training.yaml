@@ -1,7 +1,19 @@
 training:
+  mode: mock
+  episodes: 20
   gamma: 0.99
   actor_lr: 0.0003
   critic_lr: 0.0003
-  exploration_sigma: 0.1
+  exploration_sigma: 0.10
   target_update_interval: 100
   device: cpu
+  seed: 42
+  output_dir: outputs/training
+  visualization: false
+  save_checkpoints: true
+  checkpoint_interval: 5
+
+# For real-data mode, set:
+# training:
+#   mode: real
+#   dataset_path: datasets/scenarios/real_dataset.json

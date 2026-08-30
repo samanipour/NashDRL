@@ -39,7 +39,7 @@ python scripts/simulate.py --config configs/experiments/small.yaml --mode mock -
 For live GUI:
 
 ```bash
-python scripts/simulate.py --config configs/experiments/large.yaml --mode mock --visualization true --report true
+python scripts/simulate.py --config configs/experiments/small.yaml --mode mock --visualization true --report true
 ```
 
 ## Real data

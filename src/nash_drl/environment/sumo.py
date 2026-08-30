@@ -43,6 +43,22 @@ class SumoScenarioBuilder:
         self.problem = problem
         self.config = config
 
+    def build_network(self, directory: str | Path) -> SumoScenario:
+        """Build only the reusable SUMO network for multi-step training."""
+        out = Path(directory)
+        out.mkdir(parents=True, exist_ok=True)
+        node_file = out / "network.nod.xml"
+        edge_file = out / "network.edg.xml"
+        net_file = out / "network.net.xml"
+        self._write_nodes(node_file)
+        self._write_edges(edge_file)
+        self._run_netconvert(node_file, edge_file, net_file)
+        route_file = out / "routes.empty.rou.xml"
+        config_file = out / "simulation.empty.sumocfg"
+        self._write_routes(route_file, {})
+        self._write_config(config_file, net_file, route_file)
+        return SumoScenario(out, net_file, route_file, config_file, {})
+
     def build(self, directory: str | Path) -> SumoScenario:
         out = Path(directory)
         out.mkdir(parents=True, exist_ok=True)
@@ -170,7 +186,7 @@ class SumoScenarioBuilder:
         ET.SubElement(root, "vType", id="eav", accel="2.0", decel="4.5", sigma="0.5", length="5.0", maxSpeed="33.3")
         gap = 0.0
         for vehicle in self.problem.vehicles:
-            edge_ids = routes[vehicle.id]
+            edge_ids = routes.get(vehicle.id, [])
             if not edge_ids:
                 continue
             ET.SubElement(root, "route", id=f"r{vehicle.id}", edges=" ".join(f"e{eid}" for eid in edge_ids))
@@ -242,8 +258,6 @@ def run_sumo(
     else:
         binary = find_sumo_binary(binary_name)
     cmd = [binary, "-c", str(scenario.config_file), "--seed", str(config.seed), "--step-length", str(config.step_length_s)]
-    if use_gui:
-        cmd.extend(["--start", "true"])
     try:
         import traci
     except ImportError as exc:
@@ -323,3 +337,112 @@ def run_sumo(
         "steps": step,
         "output_csv": str(output_csv),
     }
+
+@dataclass(slots=True)
+class SumoTripResult:
+    sumo_time_s: float
+    vehicle_metrics: list[dict[str, Any]]
+    edge_metrics: list[dict[str, Any]]
+
+
+def run_sumo_trip(
+    problem: ProblemDefinition,
+    net_file: Path,
+    vehicle_routes: dict[int, list[int]],
+    config: SumoConfig,
+    directory: str | Path,
+    *,
+    use_gui: bool = False,
+) -> SumoTripResult:
+    """Execute one synchronous trip leg for all supplied vehicle routes.
+
+    A fresh TraCI/SUMO process is used for each training step. This intentionally
+    makes the RL time step equal to one complete trip leg, matching the problem
+    definition where each step selects routes from the current stop to the next
+    destination.
+    """
+    out = Path(directory)
+    out.mkdir(parents=True, exist_ok=True)
+    builder = SumoScenarioBuilder(problem, config)
+    route_file = out / "routes.rou.xml"
+    config_file = out / "simulation.sumocfg"
+    builder._validate_routes(vehicle_routes)
+    builder._write_routes(route_file, vehicle_routes)
+    builder._write_config(config_file, net_file, route_file)
+
+    binary_name = "sumo-gui" if use_gui else "sumo"
+    binary = find_sumo_binary(binary_name) if config.binary == "auto" else find_sumo_binary(config.binary) if config.binary in {"sumo", "sumo-gui"} else str(Path(config.binary))
+    cmd = [binary, "-c", str(config_file), "--seed", str(config.seed), "--step-length", str(config.step_length_s)]
+    if use_gui:
+        cmd.append("--start")
+
+    try:
+        import traci
+    except ImportError as exc:
+        raise RuntimeError("TraCI is required for SUMO training. Install traci==1.27.1.") from exc
+
+    traci.start(cmd, label=f"nash_drl_train_{config.seed}_{out.name}")
+    first_seen: dict[str, float] = {}
+    last_observed: dict[str, dict[str, float]] = {}
+    vehicle_metrics: list[dict[str, Any]] = []
+    edge_metrics: list[dict[str, Any]] = []
+    step = 0
+    try:
+        max_sim_steps = max(1, int(config.end_time_s / config.step_length_s))
+        while traci.simulation.getMinExpectedNumber() > 0 and step < max_sim_steps:
+            traci.simulationStep()
+            sim_time = float(traci.simulation.getTime())
+            vehicle_ids = list(traci.vehicle.getIDList())
+            for vid in vehicle_ids:
+                first_seen.setdefault(vid, sim_time)
+                pos = traci.vehicle.getPosition(vid)
+                last_observed[vid] = {
+                    "distance_m": float(traci.vehicle.getDistance(vid)),
+                    "waiting_time_s": float(traci.vehicle.getWaitingTime(vid)),
+                    "time_loss_s": float(traci.vehicle.getTimeLoss(vid)),
+                    "x": float(pos[0]),
+                    "y": float(pos[1]),
+                }
+            for eid in traci.edge.getIDList():
+                if eid.startswith(":"):
+                    continue
+                edge_metrics.append({
+                    "entity_type": "edge",
+                    "entity_id": eid,
+                    "step": step,
+                    "sim_time_s": sim_time,
+                    "vehicle_count": int(traci.edge.getLastStepVehicleNumber(eid)),
+                    "mean_speed_mps": float(traci.edge.getLastStepMeanSpeed(eid)),
+                    "occupancy_pct": float(traci.edge.getLastStepOccupancy(eid)),
+                    "halting_number": int(traci.edge.getLastStepHaltingNumber(eid)),
+                    "sampled_travel_time_s": float(traci.edge.getTraveltime(eid)),
+                })
+            for vid in traci.simulation.getArrivedIDList():
+                observed = last_observed.get(vid, {})
+                vehicle_metrics.append({
+                    "vehicle_id": int(vid.lstrip("v")),
+                    "travel_time_s": max(0.0, sim_time - first_seen.get(vid, sim_time)),
+                    "waiting_time_s": float(observed.get("waiting_time_s", 0.0)),
+                    "time_loss_s": float(observed.get("time_loss_s", 0.0)),
+                    "distance_m": float(observed.get("distance_m", 0.0)),
+                })
+            step += 1
+    finally:
+        traci.close()
+
+    expected_ids = set(vehicle_routes)
+    observed_ids = {int(m["vehicle_id"]) for m in vehicle_metrics}
+    for vid in sorted(expected_ids - observed_ids):
+        vehicle_metrics.append({
+            "vehicle_id": vid,
+            "travel_time_s": float(config.end_time_s),
+            "waiting_time_s": 0.0,
+            "time_loss_s": float(config.end_time_s),
+            "distance_m": float(last_observed.get(f"v{vid}", {}).get("distance_m", 0.0)),
+        })
+
+    return SumoTripResult(
+        sumo_time_s=float(step * config.step_length_s),
+        vehicle_metrics=vehicle_metrics,
+        edge_metrics=edge_metrics,
+    )

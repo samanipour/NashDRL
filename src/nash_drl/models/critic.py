@@ -10,7 +10,8 @@ from .deep_sets import DeepSetEncoder
 
 
 class CriticNetwork(nn.Module):
-    """
+    """per-agent state-value network.
+
     Inputs:
       * invariant rival stream: ``[N,N-1,F]`` or ``[B,N,N-1,F]``
       * ego/global stream: ``[N,F+E]`` or ``[B,N,F+E]``

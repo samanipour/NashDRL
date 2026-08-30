@@ -8,7 +8,7 @@ from .common.mlp import MLP
 class DeepSetEncoder(nn.Module):
     """Permutation-invariant encoder for the other-agent feature set.
 
-    Defines the invariant stream as ``[N, N-1, F]``: for each
+    defines the invariant stream as ``[N, N-1, F]``: for each
     focal agent, the N-1 rival feature vectors are independently transformed
     by a shared embedding function phi and then summed.  The sum is therefore
     invariant to any permutation of the rival-agent ordering.

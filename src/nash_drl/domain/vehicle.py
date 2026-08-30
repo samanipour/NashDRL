@@ -25,6 +25,8 @@ class Vehicle:
     def next_destination(self) -> int:
         if not self.trips:
             raise ValueError("Vehicle has no trips.")
+        if self.current_trip_index >= len(self.trips):
+            return int(self.current_node if self.current_node is not None else self.final_destination)
         return self.trips[self.current_trip_index].destination
 
     @property

@@ -10,3 +10,5 @@
 - `module-guide.md` — module responsibilities and dependency rules.
 - `development.md` — installation and development workflow.
 - `TESTING.md` — test strategy.
+
+- [TRAINING](TRAINING.md) — episodic SUMO training, outputs, reproducibility, and testing.

@@ -2,13 +2,7 @@
 
 ## 1. Source specification
 
-The network implementation follows the research document's requirements:
-
-- parameterize the LQ advantage through the Actor;
-- use permutation-invariant processing of other agents;
-- estimate per-agent state value;
-- use a frozen/slow Target Critic for stable TD targets;
-- produce edge-level action weights for every vehicle.
+The implementation follows Section 4 of **NashDRL-Model-V12**. The paper defines three neural modules: an Actor that parameterizes the local LQ advantage, a Critic that estimates per-agent baseline value, and a Target Critic used for stable TD targets. All use permutation-invariant processing of the other-agent population. fileciteturn1file0L401-L410
 
 The state feature extraction contract is:
 
@@ -17,7 +11,7 @@ Invariant input      [N, N-1, F]
 Non-invariant input  [N, F+E]
 ```
 
-where the invariant stream contains the focal vehicle's other agents and the non-invariant stream contains 
+where the invariant stream contains the focal vehicle's other agents and the non-invariant stream contains focal-agent features plus the global edge-flow vector. fileciteturn1file0L446-L455
 
 ## 2. Deep Sets encoder
 
@@ -43,7 +37,7 @@ shared phi
 [N,D]
 ```
 
-The sum is the permutation-invariant aggregation described in Section 4. The document does not prescribe the internal layer count of `phi`; this implementation uses a configurable MLP, defaulting to two hidden SiLU layers with 32 units and a 64-dimensional embedding. The main Actor/Critic trunk dimensions below are directly specified by the paper.
+The sum is the permutation-invariant aggregation described in Section 4. The document does not prescribe the internal layer count of `phi`; this implementation uses a configurable MLP, defaulting to two hidden SiLU layers with 32 units and a 64-dimensional embedding. The main Actor/Critic trunk dimensions below are directly specified by the paper. fileciteturn1file0L511-L522
 
 ## 3. Actor
 
@@ -66,7 +60,7 @@ The streams are concatenated and fed to the main Actor trunk. The paper specifie
 4: Psi
 ```
 
-Each channel is `[N,E]`. `P11` and `P22` are transformed with a strictly-positive softplus mapping. `mu`, `P12`, and `Psi` remain unconstrained.
+Each channel is `[N,E]`. `P11` and `P22` are transformed with a strictly-positive softplus mapping. `mu`, `P12`, and `Psi` remain unconstrained. fileciteturn1file0L116-L136
 
 ### Implementation API
 
@@ -111,7 +105,7 @@ or for training batches:
 V(x) : [B,N]
 ```
 
-
+This follows the architecture and output described in Section 4.3. fileciteturn1file0L163-L175
 
 ## 5. Target Critic
 
@@ -121,7 +115,7 @@ The Target Critic is an exact deep copy of the main Critic. Its parameters have 
 target.hard_update_from(critic)
 ```
 
-This matches the document's requirement that the Target Critic not be updated by backpropagation and instead periodically receive a hard copy of the Critic parameters.
+This matches the document's requirement that the Target Critic not be updated by backpropagation and instead periodically receive a hard copy of the Critic parameters. fileciteturn1file0L176-L183
 
 ## 6. LQ advantage interface
 
@@ -131,11 +125,11 @@ The Actor parameters feed the LQ advantage calculation. For every agent:
 z_i = u_i - mu_i
 ```
 
-The source equation contains the ego quadratic term, pairwise interaction term, rival quadratic term, and linear tilt term. The implementation is vectorized over agents and edges in `models/lq_advantage.py`.
+The source equation contains the ego quadratic term, pairwise interaction term, rival quadratic term, and linear tilt term. The implementation is vectorized over agents and edges in `models/lq_advantage.py`. fileciteturn1file0L79-L83
 
 ## 7. Relationship to the original example
 
-The supplied Nash-DQN example uses `PermInvariantQNN` with a moment-based summary of invariant variables. Therefore the production implementation does **not** copy the example's mean-moment operation. Instead, it preserves the example's fully-connected/SiLU implementation style where compatible and adapts the invariant processing to the current paper specification.
+The supplied Nash-DQN example uses `PermInvariantQNN` with a moment-based summary of invariant variables. changes this requirement: Section 4 explicitly calls for a shared Deep Sets embedding followed by summation. Therefore the production implementation does **not** copy the example's mean-moment operation. Instead, it preserves the example's fully-connected/SiLU implementation style where compatible and adapts the invariant processing to the current paper specification.
 
 ## 8. Shape contracts
 

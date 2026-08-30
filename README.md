@@ -449,6 +449,8 @@ Non-invariant [N,F+E] ──> flatten ──────────────
 
 The Actor exposes named tensors `mu`, `p11`, `p12`, `p22`, and `psi`; `p11` and `p22` are strictly positive. The Target Critic is frozen and can only be synchronized with `hard_update_from(...)`. The models also accept an optional leading batch dimension for later training integration.
 
+The supplied legacy Nash-DQN example uses a mean-moment permutation summary. explicitly specifies shared Deep Sets embedding plus sum aggregation, so the repository implementation follows the current v12 document rather than copying the legacy moment operation verbatim.
+
 ## Research model correspondence
 
 The road network is represented as a directed graph, vehicles are heterogeneous, edge flow drives both charging price and congestion, and reward depends on travel time, charging cost, and the hard budget constraint. The neural-network state/action structures remain available for the later DRL stage: CSR map, `[N,F]` agent features, `[N,N-1,F]` permutation-invariant input, `[N,F+E]` non-invariant input, and `[N,E]` action weights.
@@ -478,122 +480,22 @@ The repository includes unit and integration tests for the mathematical environm
 
 No learning or DRL optimization is executed by `scripts/simulate.py`. The route policy used for the demo is deterministic shortest-path routing. The existing Actor/Critic/game/training packages remain available for the subsequent learning stage.
 
-## 8. Basic commands
+## Episodic NashDRL Training
+
+Training is dataset-driven and episodic. A dataset is generated once in mock mode or loaded once in real-data mode. The number of environment/learning steps per episode is automatically derived as the maximum trip-set length across vehicles. Trip sets remain fixed between episodes.
+
+At each step, the Actor produces the current edge-weight/LQ parameters, the deterministic route mapper selects one path from each active vehicle's current stop to its next destination, and SUMO executes those trip legs. Rewards and hard-budget violations are calculated after the step, the vehicle states are advanced, and the next state is passed to the Actor/Critic system.
+
+Training writes `episode_results.csv`, `step_results.csv`, `vehicle_results.csv`, `edge_results.csv`, checkpoint files, and PNG learning diagrams under the configured output directory.
+
+Example:
 
 ```bash
-nash-drl-train --config configs/default.yaml
-nash-drl-evaluate --config configs/default.yaml
-nash-drl-infer --checkpoint checkpoints/latest.pt
-nash-drl-visualize --input outputs/
+python scripts/train.py --config configs/experiments/small.yaml --mode mock --episodes 3
 ```
 
-The scripts in `scripts/` are also usable directly:
+Test a saved checkpoint:
 
 ```bash
-python scripts/train.py --config configs/default.yaml
+python scripts/evaluate.py --config configs/default.yaml --mode mock --episodes 5 --checkpoint outputs/training/checkpoints/episode_00020.pt
 ```
-
-## 9. Testing
-
-```bash
-pytest
-```
-
-Run focused tests:
-
-```bash
-pytest tests/unit/test_csr_map.py
-pytest tests/unit/test_features.py
-pytest tests/integration/test_training_step.py
-```
-
-## 10. Configuration
-
-Configuration is deliberately split into:
-
-- `default.yaml`: composition and shared experiment defaults.
-- `network.yaml`: feature sizes, hidden dimensions, activation, Actor/Critic settings.
-- `environment.yaml`: map, charging, congestion, travel-time, reward settings.
-- `training.yaml`: optimizer, learning rates, discount, rollout, target update, checkpointing.
-- `configs/experiments/*.yaml`: experiment-specific overrides.
-
-See `docs/CONFIGURATION.md`.
-
-## 11. Data and tensor contracts
-
-See `docs/DATA_MODEL.md` for the canonical definition of:
-
-- CSR arrays
-- agent features
-- edge-flow features
-- invariant/non-invariant model inputs
-- Actor output channels
-- action representation
-- transition and batch objects
-
-## 12. Neural-network architecture
-
-See `docs/NETWORK_DESIGN.md` for the implementation contract of:
-
-- Deep Sets
-- Actor
-- Critic
-- Target Critic
-- LQ advantage
-- tensor dimensions and information flow
-
-## 13. Implementation status
-
-### Implemented scaffolding
-
-- Package and build configuration
-- Domain models
-- CSR representation
-- State/action/transition structures
-- State feature extraction interfaces
-- Deep Sets and feed-forward building blocks
-- Actor/Critic interfaces
-- Target-Critic synchronization interface
-- Routing interfaces and reference mappers
-- Environment component interfaces
-- Training orchestration interfaces
-- Evaluation and visualization interfaces
-- Tests and fixtures
-
-### Explicit research implementation points
-
-The repository intentionally does not claim that every research equation is fully finalized. In particular, the exact LQ/Nash derivation, the full multi-trip episode transition semantics, complete route-constraint policy, and any training details not specified by the source document must be implemented and validated as part of the research process.
-
-## 14. Development workflow
-
-Recommended order:
-
-1. Validate the domain and CSR map.
-2. Validate charging, congestion, travel-time, and reward equations independently.
-3. Build a deterministic environment scenario and reproduce the document's illustrative comparison.
-4. Validate route mapping and path constraints.
-5. Validate feature extraction and permutation invariance.
-6. Unit-test Actor/Critic tensor shapes and positive-definiteness constraints.
-7. Implement and test the LQ game/advantage calculation.
-8. Connect environment, Actor, Critic, Target Critic, and training loop.
-9. Add experiment configurations and evaluation protocols.
-10. Add large-scale datasets and profiling.
-
-## 15. Research reproducibility
-
-Every experiment should save:
-
-```text
-outputs/<experiment>/
-├── config.yaml
-├── metrics.csv
-├── summary.json
-├── plots/
-└── checkpoints/
-```
-
-Set random seeds through `nash_drl.utils.seeding` and record the exact configuration used for each run.
-
-## 16. Source of truth
-
-The authoritative mathematical specification for the current project is the research document **Nash DRL, Document Version 12, last modified 2026-08-22**. This repository documents an implementation architecture for that specification; it should not silently reinterpret unspecified equations or algorithms.

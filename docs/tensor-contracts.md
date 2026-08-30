@@ -1,5 +1,7 @@
 # Tensor Contracts
 
+These contracts are the canonical interfaces between state feature extraction and the neural modules.
+
 | Tensor / object | Single-state shape | Batched shape | Meaning |
 |---|---|---|---|
 | `agent_features` | `[N,F]` | `[B,N,F]` | per-vehicle semantic features |

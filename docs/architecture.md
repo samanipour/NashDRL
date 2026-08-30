@@ -50,6 +50,8 @@ Salabim replay (optional)
 
 The non-learning demo uses deterministic shortest-path routing from the generated graph. This is explicitly a simulation baseline, not the final Nash policy.
 
+## Future DRL boundary
+
 ```text
 Domain objects
     │

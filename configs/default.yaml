@@ -31,12 +31,17 @@ mock_data:
   graph_extra_edges: 10
   road_min_length_km: 1.0
   road_max_length_km: 8.0
+  road_length_std_km: 1.5
   capacity_min_vph: 20
   capacity_max_vph: 80
+  capacity_std_vph: 15.0
   speed_min_kmh: 30.0
   speed_max_kmh: 70.0
+  speed_std_kmh: 10.0
   budget_min: 75.0
   budget_max: 300.0
+  budget_std: 45.0
+  trip_count_std: 0.9
   energy_rate_kwh_per_km: 1.0
   charging_overhead: 6.0
   charging_fixed_cost: 1.0
@@ -66,9 +71,22 @@ reward:
   budget_penalty: 100.0
 
 training:
+  mode: mock
+  episodes: 20
   gamma: 0.99
   actor_lr: 0.0003
   critic_lr: 0.0003
   exploration_sigma: 0.1
   target_update_interval: 100
   device: cpu
+  seed: 42
+  output_dir: outputs/training
+  visualization: false
+  save_checkpoints: true
+  checkpoint_interval: 5
+
+evaluation:
+  mode: mock
+  episodes: 5
+  output_dir: outputs/evaluation
+  visualization: false

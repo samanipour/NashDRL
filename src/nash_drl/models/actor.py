@@ -40,7 +40,8 @@ class ActorOutput:
 
 
 class ActorNetwork(nn.Module):
-    """
+    """Actor Network.
+
     Inputs:
       * invariant stream: ``[N,N-1,F]`` or ``[B,N,N-1,F]``
       * non-invariant stream: ``[N,F+E]`` or ``[B,N,F+E]``
