@@ -206,8 +206,13 @@ class SumoScenarioBuilder:
     def _write_config(self, path: Path, net_file: Path, route_file: Path) -> None:
         root = ET.Element("configuration")
         inp = ET.SubElement(root, "input")
-        ET.SubElement(inp, "net-file", value=net_file.name)
-        ET.SubElement(inp, "route-files", value=route_file.name)
+    
+        # SUMO resolves file references relative to the .sumocfg file.
+        net_ref = os.path.relpath(net_file, path.parent)
+        route_ref = os.path.relpath(route_file, path.parent)
+    
+        ET.SubElement(inp, "net-file", value=net_ref)
+        ET.SubElement(inp, "route-files", value=route_ref)
         time = ET.SubElement(root, "time")
         ET.SubElement(time, "begin", value="0")
         ET.SubElement(time, "end", value=str(self.config.end_time_s))

@@ -156,7 +156,7 @@ class NashDRLTrainer:
 
             self.update_count += 1
             if self.update_count % self.config.target_update_interval == 0:
-                hard_update(self.target_critic, self.critic)
+                self.target_critic.hard_update_from(self.critic)
 
             episode_reward += float(reward_result.total_reward.detach().cpu())
             violation_events += int(reward_result.budget_violations.sum().item())

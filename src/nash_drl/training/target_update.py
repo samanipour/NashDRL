@@ -5,7 +5,12 @@ from torch import nn
 
 
 def hard_update(target: nn.Module, source: nn.Module) -> None:
-    target.load_state_dict(source.state_dict())
+    if hasattr(target, "hard_update_from"):
+        target.hard_update_from(source)
+        return
+
+    target.load_state_dict(source.state_dict(), strict=True)
+
     for p in target.parameters():
         p.requires_grad_(False)
 
