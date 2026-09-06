@@ -1,6 +1,6 @@
 # Nash-DRL
 
-Nash-DRL is a research implementation for multi-agent electric autonomous vehicle routing. This repository currently provides a complete **simulation, environment, reproducible mock-data, SUMO/TraCI integration, and visualization layer**. The DRL learning loop is intentionally not required for the simulation demo stage.
+Nash-DRL is a research implementation for multi-agent electric autonomous vehicle routing. The repository provides the mathematical domain model, reproducible mock-data generation, SUMO/TraCI simulation, permutation-invariant neural networks, episodic Actor/Critic training, evaluation, reporting, and visualization layers. The learning pipeline can be run independently of the simulation demo through the same configured environment interfaces.
 
 ## Simulation objective
 
@@ -318,24 +318,21 @@ SUMO + TraCI
 
 SUMO 1.27.1 is the pinned simulator/client target. TraCI is used as the Python control interface. The current stable release is SUMO 1.27.1 (25 June 2026), and the matching `traci` and `sumolib` Python packages are available as version 1.27.1. The salabim dependency is used for optional trajectory replay/animation. See the project documentation for installation details.
 
-## 7. Installation
+## Quick start
+
 Install Python dependencies:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate          # Linux/macOS
-# .venv\\Scripts\\activate       # Windows PowerShell
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# Linux/macOS
+# source .venv/bin/activate
 
-python -m pip install --upgrade pip
 pip install -e .
 ```
 
-Development dependencies:
-
 Install SUMO 1.27.1 separately and make sure `sumo`, `sumo-gui`, and `netconvert` are discoverable. Alternatively set `SUMO_HOME` to the SUMO installation directory.
-```bash
-pip install -e ".[dev]"
-```
 
 Run the reproducible mock simulation:
 
@@ -414,7 +411,7 @@ src/nash_drl/
 └── utils/           cross-cutting utilities
 ```
 
-The current simulation demo uses `domain`, `data`, `environment`, `routing`, `evaluation`, `visualization`, and `utils`. It does not invoke the learning components.
+The simulation demo uses `domain`, `data`, `environment`, `routing`, `evaluation`, `visualization`, and `utils`. Training additionally composes `features`, `models`, `game`, and `training` around the same environment and dataset interfaces.
 
 
 ### Neural-network implementation status
@@ -449,7 +446,6 @@ Non-invariant [N,F+E] ──> flatten ──────────────
 
 The Actor exposes named tensors `mu`, `p11`, `p12`, `p22`, and `psi`; `p11` and `p22` are strictly positive. The Target Critic is frozen and can only be synchronized with `hard_update_from(...)`. The models also accept an optional leading batch dimension for later training integration.
 
-The supplied legacy Nash-DQN example uses a mean-moment permutation summary. explicitly specifies shared Deep Sets embedding plus sum aggregation, so the repository implementation follows the current v12 document rather than copying the legacy moment operation verbatim.
 
 ## Research model correspondence
 
@@ -479,6 +475,21 @@ The repository includes unit and integration tests for the mathematical environm
 ## Current implementation boundary
 
 No learning or DRL optimization is executed by `scripts/simulate.py`. The route policy used for the demo is deterministic shortest-path routing. The existing Actor/Critic/game/training packages remain available for the subsequent learning stage.
+
+## Stabilized NashDRL training
+
+The current training implementation contains the following stabilization and correctness fixes:
+
+1. The loss uses the documented decomposition `Q(x,u) = V(x) + A(x,u)` for both Actor and Critic updates. The Critic receives `stop_gradient(A)`, while the Actor receives `stop_gradient(V)` and the executed action is detached.
+2. A replay buffer trains on batches of fixed-shape multi-agent transitions, matching the batch-oriented reference implementation.
+3. Variable-length trip sets use per-agent terminal masks, and inactive vehicles are excluded from optimization through an active-agent mask.
+4. Agent and edge-flow features are normalized to comparable scales.
+5. Dijkstra maps real-valued Actor weights through `softplus(-weight)` so negative weights remain usable and routing does not collapse at `1/max(weight, eps)`.
+6. Mock budgets are sampled from normal distributions conditioned on a known shortest-path feasible baseline, making zero-violation solutions feasible in generated datasets.
+7. The learning reward uses the analytical congestion/travel-time Equation (5) by default; SUMO travel-time telemetry is retained separately for validation and diagnostics.
+8. Gaussian exploration decays toward a configured final sigma and gradients are clipped.
+
+The default research configuration retains the paper-defined piecewise reward structure. The large training profile uses a stronger hard-constraint penalty and a small reward scale as training hyperparameters; the mathematical reward equation itself is unchanged.
 
 ## Episodic NashDRL Training
 

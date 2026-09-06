@@ -8,7 +8,16 @@ training:
   actor_lr: 0.0003
   critic_lr: 0.0003
   exploration_sigma: 0.10
-  target_update_interval: 10
+  exploration_sigma_final: 0.02
+  exploration_decay_episodes: 100
+  reward_scale: 0.01
+  max_grad_norm: 5.0
+  replay_enabled: true
+  replay_capacity: 1000
+  replay_batch_size: 16
+  replay_warmup: 16
+  updates_per_step: 1
+  target_update_interval: 20
   device: cpu
   seed: 42
   output_dir: outputs/training_small
@@ -28,11 +37,12 @@ environment:
   charging_floor_price: 0.0
   congestion_alpha: 0.15
   congestion_beta: 4.0
+  use_model_travel_time: true
 
 reward:
   travel_time_weight: 1.0
   charging_cost_weight: 1.0
-  budget_penalty: 100.0
+  budget_penalty: 500.0
 
 simulation:
   mode: mock
@@ -66,4 +76,6 @@ mock_data:
   budget_min: 80.0
   budget_max: 240.0
   budget_std: 30.0
+  budget_feasibility_multiplier: 1.20
+  budget_resample_limit: 100
   trip_count_std: 0.8

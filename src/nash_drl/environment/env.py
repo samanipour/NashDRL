@@ -24,6 +24,7 @@ class EnvironmentConfig:
     congestion_alpha: float = 0.15
     congestion_beta: float = 4.0
     max_steps: int = 100
+    use_model_travel_time: bool = True
 
 
 class NashEnvironment:
@@ -53,7 +54,14 @@ class NashEnvironment:
         final_destinations = torch.tensor(
             [int(v.final_destination) if v.trips else 0 for v in self.problem.vehicles], dtype=torch.long
         )
-        features = encode_agent_features(self.problem.vehicles, csr.num_nodes, dtype=torch.float32)
+        features = encode_agent_features(
+            self.problem.vehicles,
+            csr.num_nodes,
+            dtype=torch.float32,
+            max_trips=max((len(v.trips) for v in self.problem.vehicles), default=1),
+            max_budget=max((v.budget for v in self.problem.vehicles), default=1.0),
+            max_speed_kmh=max((v.free_flow_speed_kmh for v in self.problem.vehicles), default=1.0),
+        )
         self.state = GlobalState(
             csr_map=csr,
             agent_features=features,

@@ -2,60 +2,105 @@
 
 ## Training semantics
 
-A NashDRL episode uses a fixed vehicle trip-set dataset. The dataset is generated or loaded once before training and is not changed between episodes. The episode horizon is derived from the dataset:
+A NashDRL dataset is generated once in `mock` mode or loaded once in `real` mode. The vehicle trip-sets are therefore fixed across all learning episodes. The episode horizon is derived from the dataset:
 
 `steps_per_episode = max(len(vehicle.trips) for vehicle in vehicles)`.
 
-At each step, the Actor receives the current global state and produces LQ parameters. The current mean action is optionally perturbed with Gaussian exploration noise and mapped deterministically to one route per active vehicle. The SUMO environment executes that trip leg to completion. The environment then computes the model reward, updates each vehicle's current stop, remaining trip count and remaining budget, and exposes the next state.
+At each step, the Actor processes the current state and the deterministic route mapper produces an action route for every active vehicle. SUMO/TraCI executes the current trip leg, the environment computes the NashDRL model reward, advances vehicle trip indices/budgets, and returns the next state.
 
-Vehicles with fewer trips become inactive after their trip-set is exhausted. Their state remains represented so the fixed `[N,F]`, `[N,N-1,F]` and `[N,F+E]` tensor contracts remain valid.
+The loss calculation follows the Section-4 decomposition:
 
-## Episode outputs
+`Q(x,u) = V(x) + A(x,u)`
 
-Each training run writes:
+`TD target = r + gamma * V_slow(x')`
 
-- `episode_results.csv`: one row per episode with total reward, mean losses, hard-constraint violations, travel time, charging cost and number of completed trips.
-- `step_results.csv`: one row per environment/learning step.
-- `vehicle_results.csv`: per-vehicle trip-level telemetry, reward, budget and route data.
-- `edge_results.csv`: SUMO edge telemetry enriched with graph and charging/congestion parameters.
-- `training_metadata.json`: dataset identity, seed, dimensions and derived episode horizon.
-- `plots/*.png`: learning curves for reward, actor/critic losses, violations, travel time and charging cost.
-- `checkpoints/*.pt`: Actor, Critic, Target Critic and optimizer state when checkpointing is enabled.
+`TD error = (V(x) + A(x,u)) - TD target`
 
-## Mock dataset reproducibility
+The executed action `u` is detached before loss computation. This is important: the sampled action is treated as fixed while the Actor learns the mean `mu` through `z = u - mu`.
 
-Mock data are generated once per configured seed using clipped normal distributions for road length, capacity, speed, budget and trip-count selection. The graph contains a bidirectional ring plus reproducibly sampled extra edges so every generated origin/destination pair has a directed path.
+For the Critic update, `A(x,u)` is detached. For the Actor update, `V(x)` and the TD target are detached. The Target Critic is never updated by backpropagation and is hard-copied from the Main Critic every `target_update_interval` optimization updates.
 
-The generated dataset is saved under `datasets/generated/mock_seed_<seed>/dataset.json` and copied into the training output directory for provenance.
+## Replay and optimization
+
+Training uses a small replay buffer by default because the supplied reference implementation computes the Nash loss over batches of transitions. The buffer stores the two neural input streams, executed action, per-agent reward, per-agent terminal flag, and active-agent mask.
+
+`replay_warmup` controls how many transitions must exist before updates begin. `replay_batch_size` controls the number of transitions per optimization update and `updates_per_step` controls how many batches are learned after each environment step.
+
+The loss is normalized over active agents only. Vehicles whose trip-set has already finished do not contribute artificial zero-reward learning targets to the Actor/Critic updates.
+
+## Observation normalization
+
+The six Section-3.2.1 per-agent features are normalized using dataset-level scales:
+
+- node identifiers / `(N_nodes - 1)`;
+- remaining trips / maximum trip count;
+- remaining budget / maximum initial budget;
+- free-flow speed / maximum free-flow speed.
+
+Global edge flows are normalized by the number of vehicles. This keeps feature magnitudes comparable across small and large experiments.
+
+## Exploration
+
+Exploration is Gaussian noise added to the detached Actor mean action. `exploration_sigma` is linearly decayed toward `exploration_sigma_final` over `exploration_decay_episodes`.
+
+## Route mapping
+
+The Actor emits real-valued edge weights. Dijkstra converts them into positive traversal costs using a smooth `softplus(-weight)` transformation. This avoids the previous `1/max(weight, eps)` saturation in which every negative Actor output effectively became the same huge cost.
+
+The route mapper remains deterministic and non-trainable.
+
+## Reward and hard constraints
+
+The model reward remains:
+
+`R_i = -w_T T_i - w_C C_i`, when `C_i <= B_i`
+
+`R_i = -P`, when `C_i > B_i`.
+
+The large training configuration intentionally uses a stronger `P` than the illustrative paper example. This is a training configuration choice, not a change to the mathematical definition. For strict reproduction of the paper's illustrative setting, use `budget_penalty: 100.0`.
+
+SUMO travel-time telemetry is retained for diagnostics. By default training reward uses the analytical congestion/travel-time equation from the model rather than raw SUMO travel time. Set `environment.use_model_travel_time: false` to use SUMO-reported travel time for an alternative experiment.
+
+## Mock dataset generation
+
+Mock numeric attributes are sampled from reproducible clipped normal distributions. Trip-set length is sampled from a normal distribution and clipped to the configured bounds.
+
+Vehicle budgets are generated after trip-sets and the graph are known. The generator first computes a deterministic shortest-path reference assignment and its model charging cost, then samples each budget from a normal distribution conditioned to be at least that reference cost. Consequently, zero hard-constraint violations are feasible for every generated vehicle under at least one known reference routing policy.
+
+The same dataset is reused in every learning episode.
+
+## Training outputs
+
+The training run writes:
+
+- `episode_results.csv`: one row per episode;
+- `step_results.csv`: one row per learning/environment step;
+- `vehicle_results.csv`: trip-level vehicle telemetry and model quantities;
+- `edge_results.csv`: edge telemetry and model parameters;
+- `training_metadata.json`: experiment and dataset provenance;
+- `checkpoints/*.pt`: Actor/Critic/Target Critic and optimizer states;
+- `plots/*.png`: raw and rolling-mean learning curves.
+
+Important diagnostics now include `actor_gradient_norm`, `critic_gradient_norm`, `mean_advantage`, `mean_td_error`, `replay_size`, `updates`, and `exploration_sigma`.
 
 ## Run training
 
 ```bash
-python scripts/train.py --config configs/experiments/small.yaml --mode mock --episodes 3
+python scripts/train.py --config configs/experiments/small.yaml --mode mock --episodes 100
 ```
 
-For a real dataset:
+For the larger experiment:
 
 ```bash
-python scripts/train.py --config configs/default.yaml --mode real
+python scripts/train.py --config configs/experiments/large.yaml --mode mock --episodes 1000
 ```
-
-Set `training.dataset_path` to the JSON dataset in real-data mode.
 
 ## Test a checkpoint
 
-Set `evaluation.checkpoint` to a saved checkpoint or pass the checkpoint through the CLI. Testing runs the same fixed trip sets with exploration disabled.
-
 ```bash
-python scripts/evaluate.py --config configs/default.yaml --mode mock --episodes 5
+python scripts/evaluate.py \
+    --config configs/default.yaml \
+    --mode mock \
+    --episodes 5 \
+    --checkpoint outputs/training_large/checkpoints/episode_01000.pt
 ```
-
-## Learning equations implemented here
-
-For each step, the implementation uses:
-
-`TD Target = r + gamma * V_slow(x')`
-
-`TD Error = (V(x) + A(x,u)) - TD Target`
-
-The Critic is optimized against the detached TD target, while the Actor is optimized through the LQ advantage term with Critic/target terms detached. The Target Critic is hard-synchronized from the Critic every configured number of optimization updates.

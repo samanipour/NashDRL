@@ -129,7 +129,7 @@ The source equation contains the ego quadratic term, pairwise interaction term, 
 
 ## 7. Relationship to the original example
 
-The supplied Nash-DQN example uses `PermInvariantQNN` with a moment-based summary of invariant variables. changes this requirement: Section 4 explicitly calls for a shared Deep Sets embedding followed by summation. Therefore the production implementation does **not** copy the example's mean-moment operation. Instead, it preserves the example's fully-connected/SiLU implementation style where compatible and adapts the invariant processing to the current paper specification.
+The supplied Nash-DQN example uses `PermInvariantQNN` with a moment-based summary of invariant variables. NashDRL-v12 changes this requirement: Section 4 explicitly calls for a shared Deep Sets embedding followed by summation. Therefore the production implementation does **not** copy the example's mean-moment operation. Instead, it preserves the example's fully-connected/SiLU implementation style where compatible and adapts the invariant processing to the current paper specification.
 
 ## 8. Shape contracts
 

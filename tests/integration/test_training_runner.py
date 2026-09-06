@@ -34,6 +34,9 @@ def test_training_runner_executes_fixed_trip_sets_for_each_episode(tmp_path, mon
     cfg["training"]["episodes"] = 2
     cfg["training"]["save_checkpoints"] = False
     cfg["training"]["output_dir"] = str(tmp_path / "training")
+    cfg["training"]["replay_warmup"] = 1
+    cfg["training"]["replay_batch_size"] = 1
+    cfg["training"]["target_update_interval"] = 2
 
     result = TrainingRunner(cfg).run()
 

@@ -60,4 +60,5 @@ class DeepSetEncoder(nn.Module):
         embedded = self.phi(flat).reshape(*x.shape[:-1], self.embedding_dim)
 
         # Sum aggregation is the permutation-invariant operation specified in
+        # Section 4 of NashDRL-v12.
         return embedded.sum(dim=-2)

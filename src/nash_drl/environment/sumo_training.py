@@ -112,7 +112,14 @@ class NashSUMOTrainingEnvironment:
             [int(v.final_destination) if v.trips else int(v.current_node or 0) for v in self.problem.vehicles],
             dtype=torch.long,
         )
-        features = encode_agent_features(self.problem.vehicles, self.csr.num_nodes, dtype=torch.float32)
+        features = encode_agent_features(
+            self.problem.vehicles,
+            self.csr.num_nodes,
+            dtype=torch.float32,
+            max_trips=max((len(v.trips) for v in self.problem.vehicles), default=1),
+            max_budget=max((v.budget for v in self.problem.vehicles), default=1.0),
+            max_speed_kmh=max((v.free_flow_speed_kmh for v in self.problem.vehicles), default=1.0),
+        )
         return GlobalState(
             csr_map=self.csr,
             agent_features=features,
@@ -157,7 +164,10 @@ class NashSUMOTrainingEnvironment:
                 self.problem.vehicles[i].current_trip_index += 1
             done = self.step_index >= self.max_steps
             self.state = self._make_state()
-            return self.state, self._zero_reward(), done, {"paths": paths, "sumo": None}
+            agent_done = [bool(v.current_trip_index >= len(v.trips)) for v in self.problem.vehicles]
+            if done:
+                agent_done = [True] * self.num_agents
+            return self.state, self._zero_reward(), done, {"paths": paths, "sumo": None, "agent_done": agent_done}
 
         step_dir = self.sumo_scenario.directory.parent / f"step_{self.step_index:03d}"
         if step_dir.exists():
@@ -193,13 +203,16 @@ class NashSUMOTrainingEnvironment:
                 continue
             path = paths.edge_ids[i]
             telemetry = metrics_by_id.get(vehicle.id, {})
-            # Formula (5) in the model is expressed in hours; SUMO telemetry is seconds.
-            travel_times[i] = float(telemetry.get("travel_time_s", 0.0)) / 3600.0
             edge_ids = torch.tensor(path, dtype=torch.long)
+            model_travel_time_h = 0.0
             if len(path) > 0:
                 lengths = self.csr.edge_len[edge_ids]
                 flows = self.csr.edge_flow[edge_ids]
+                caps = self.csr.edge_cap[edge_ids]
+                speeds = torch.full_like(lengths, float(vehicle.free_flow_speed_kmh))
                 from .energy_cost import edge_energy_cost
+                from .travel_time import edge_travel_time
+
                 charging_costs[i] = edge_energy_cost(
                     lengths,
                     flows,
@@ -208,6 +221,25 @@ class NashSUMOTrainingEnvironment:
                     self.config.environment.charging_fixed_cost,
                     self.config.environment.charging_floor_price,
                 ).sum()
+                model_travel_time_h = float(
+                    edge_travel_time(
+                        lengths,
+                        speeds,
+                        flows,
+                        caps,
+                        self.config.environment.congestion_alpha,
+                        self.config.environment.congestion_beta,
+                    ).sum()
+                )
+
+            # SUMO travel time is retained for diagnostics.  The NashDRL
+            # learning reward can use the mathematical Eq. (5) travel time
+            # through EnvironmentConfig.use_model_travel_time.
+            sumo_travel_time_h = float(telemetry.get("travel_time_s", 0.0)) / 3600.0
+            travel_times[i] = (
+                model_travel_time_h if self.config.environment.use_model_travel_time
+                else sumo_travel_time_h
+            )
 
             self.cumulative_costs[vehicle.id] += float(charging_costs[i])
             self.cumulative_travel_times[vehicle.id] += float(travel_times[i])
@@ -221,6 +253,10 @@ class NashSUMOTrainingEnvironment:
                 "destination_node": vehicle.trips[vehicle.current_trip_index].destination,
                 "travel_time_h": float(travel_times[i]),
                 "travel_time_s": float(travel_times[i]) * 3600.0,
+                "model_travel_time_h": model_travel_time_h,
+                "model_travel_time_s": model_travel_time_h * 3600.0,
+                "sumo_travel_time_h": sumo_travel_time_h,
+                "sumo_travel_time_s": sumo_travel_time_h * 3600.0,
                 "charging_cost": float(charging_costs[i]),
                 "cumulative_travel_time_s": self.cumulative_travel_times[vehicle.id],
                 "cumulative_charging_cost": self.cumulative_costs[vehicle.id],
@@ -272,12 +308,18 @@ class NashSUMOTrainingEnvironment:
         done = self.step_index >= self.max_steps
         self.state = self._make_state()
         self.state.csr_map.edge_flow = self.csr.edge_flow
+        agent_done = [
+            bool(v.current_trip_index >= len(v.trips)) for v in self.problem.vehicles
+        ]
+        if done:
+            agent_done = [True] * self.num_agents
         info = {
             "paths": paths,
             "vehicle_metrics": vehicle_metrics,
             "edge_metrics": trip_metrics.edge_metrics if trip_metrics else [],
             "sumo_time_s": float(trip_metrics.sumo_time_s) if trip_metrics else 0.0,
             "completed_trips": sum(min(self.step_index, len(v.trips)) for v in self.problem.vehicles),
+            "agent_done": agent_done,
         }
         return self.state, reward, done, info
 

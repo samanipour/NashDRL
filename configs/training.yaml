@@ -5,6 +5,15 @@ training:
   actor_lr: 0.0003
   critic_lr: 0.0003
   exploration_sigma: 0.10
+  exploration_sigma_final: 0.02
+  exploration_decay_episodes: 1000
+  reward_scale: 1.0
+  max_grad_norm: 5.0
+  replay_enabled: true
+  replay_capacity: 10000
+  replay_batch_size: 32
+  replay_warmup: 32
+  updates_per_step: 1
   target_update_interval: 100
   device: cpu
   seed: 42

@@ -205,22 +205,37 @@ class SumoScenarioBuilder:
 
     def _write_config(self, path: Path, net_file: Path, route_file: Path) -> None:
         root = ET.Element("configuration")
+    
         inp = ET.SubElement(root, "input")
     
         # SUMO resolves file references relative to the .sumocfg file.
+        # The network is built once per episode and reused by every
+        # trip-level step.
         net_ref = os.path.relpath(net_file, path.parent)
         route_ref = os.path.relpath(route_file, path.parent)
     
         ET.SubElement(inp, "net-file", value=net_ref)
         ET.SubElement(inp, "route-files", value=route_ref)
+    
         time = ET.SubElement(root, "time")
         ET.SubElement(time, "begin", value="0")
         ET.SubElement(time, "end", value=str(self.config.end_time_s))
+    
         misc = ET.SubElement(root, "processing")
-        ET.SubElement(misc, "time-to-teleport", value=str(self.config.teleport_time_s))
+        ET.SubElement(
+            misc,
+            "time-to-teleport",
+            value=str(self.config.teleport_time_s),
+        )
+    
         report = ET.SubElement(root, "report")
         ET.SubElement(report, "verbose", value="false")
-        ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
+    
+        ET.ElementTree(root).write(
+            path,
+            encoding="utf-8",
+            xml_declaration=True,
+        )
 
 
 def find_sumo_binary(name: str = "sumo") -> str:

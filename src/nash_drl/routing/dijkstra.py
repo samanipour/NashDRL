@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import heapq
+import math
 
 import torch
 
@@ -10,7 +11,17 @@ from .mapper import ActionToPathMapper
 
 
 class DijkstraMapper(ActionToPathMapper):
-    """Deterministic mapper using reciprocal positive edge weights as costs."""
+    """Deterministic mapper with a smooth positive cost transform.
+
+    Actor weights are real-valued.  A smooth monotone transformation turns a
+    larger weight into a smaller positive traversal cost while keeping both
+    positive and negative Actor outputs numerically usable.
+    """
+
+    def __init__(self, weight_clip: float = 10.0) -> None:
+        if weight_clip <= 0:
+            raise ValueError("weight_clip must be positive")
+        self.weight_clip = float(weight_clip)
 
     def map(self, action: Action, state: GlobalState) -> Paths:
         action.validate()
@@ -18,21 +29,42 @@ class DijkstraMapper(ActionToPathMapper):
         for agent_idx in range(action.num_agents):
             source = int(state.current_nodes[agent_idx].item())
             destination = int(state.next_destinations[agent_idx].item())
-            paths.append(self._shortest_path(state, action.edge_weights[agent_idx], source, destination))
+            paths.append(
+                self._shortest_path(
+                    state,
+                    action.edge_weights[agent_idx],
+                    source,
+                    destination,
+                )
+            )
         return Paths(paths)
 
-    def _shortest_path(self, state: GlobalState, weights: torch.Tensor, source: int, destination: int) -> list[int]:
+    def _edge_cost(self, weight: float) -> float:
+        # softplus(-w), evaluated in a bounded region for stable routing.
+        w = max(-self.weight_clip, min(self.weight_clip, weight))
+        return math.log1p(math.exp(-w)) + 1e-6
+
+    def _shortest_path(
+        self,
+        state: GlobalState,
+        weights: torch.Tensor,
+        source: int,
+        destination: int,
+    ) -> list[int]:
         if source == destination:
             return []
+
         dist = {source: 0.0}
         prev: dict[int, tuple[int, int]] = {}
         heap = [(0.0, source)]
+
         while heap:
             d, node = heapq.heappop(heap)
             if node == destination:
                 break
             if d > dist.get(node, float("inf")):
                 continue
+
             for edge_tensor in state.csr_map.outgoing_edge_ids(node):
                 edge_id = int(edge_tensor.item())
                 edge_positions = (state.csr_map.edge_ids == edge_id).nonzero(as_tuple=False)
@@ -40,15 +72,15 @@ class DijkstraMapper(ActionToPathMapper):
                     continue
                 pos = int(edge_positions[0].item())
                 next_node = int(state.csr_map.col_idx[pos].item())
-                weight = float(weights[edge_id].item())
-                cost = 1.0 / max(weight, 1e-6)
-                candidate = d + cost
+                candidate = d + self._edge_cost(float(weights[edge_id].item()))
                 if candidate < dist.get(next_node, float("inf")):
                     dist[next_node] = candidate
                     prev[next_node] = (node, edge_id)
                     heapq.heappush(heap, (candidate, next_node))
+
         if destination not in prev:
             return []
+
         path: list[int] = []
         node = destination
         while node != source:
