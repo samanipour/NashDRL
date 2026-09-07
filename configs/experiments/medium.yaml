@@ -1,0 +1,89 @@
+project:
+  seed: 2027
+
+training:
+  mode: mock
+  episodes: 300
+  gamma: 0.97
+  actor_lr: 0.0001
+  critic_lr: 0.0003
+  exploration_sigma: 0.25
+  exploration_sigma_final: 0.03
+  exploration_decay_episodes: 220
+  reward_scale: 0.01
+  max_grad_norm: 5.0
+  replay_enabled: true
+  replay_capacity: 10000
+  replay_batch_size: 32
+  replay_warmup: 32
+  updates_per_step: 2
+  target_update_interval: 50
+  device: cpu
+  seed: 2027
+  output_dir: outputs/training_medium
+  visualization: false
+  save_checkpoints: true
+  checkpoint_interval: 25
+
+# Evaluation uses the same frozen trip-sets/dataset unless explicitly changed.
+evaluation:
+  episodes: 10
+  output_dir: outputs/test_medium
+  visualization: false
+
+# NashDRL model equations from Section 2/3 of NashDRL-Model-V12.
+environment:
+  energy_rate_kwh_per_km: 1.0
+  charging_overhead: 6.0
+  charging_fixed_cost: 1.0
+  charging_floor_price: 0.0
+  congestion_alpha: 0.15
+  congestion_beta: 4.0
+  use_model_travel_time: true
+
+# Deliberately constraint-dominant enough for the medium diagnostic while
+# retaining the paper's piecewise reward structure.
+reward:
+  travel_time_weight: 1.0
+  charging_cost_weight: 1.0
+  budget_penalty: 500.0
+
+simulation:
+  mode: mock
+  visualization: false
+  sumo:
+    binary: auto
+    step_length_s: 1.0
+    end_time_s: 300
+    teleport_time_s: 120
+    seed: 2027
+    default_edge_speed_kmh: 50.0
+    vehicle_departure_gap_s: 1.0
+    allow_turnarounds: true
+
+# Medium benchmark: enough vehicles and alternative routes to create a
+# non-trivial routing/coordination problem. Budgets are centered at the
+# shortest-path reference cost (multiplier 1.0), so the reference policy is
+# feasible while the initially untrained policy can still violate budgets.
+mock_data:
+  seed: 2027
+  num_vehicles: 20
+  min_trips_per_vehicle: 1
+  max_trips_per_vehicle: 3
+  graph_nodes: 14
+  graph_extra_edges: 14
+  road_min_length_km: 1.0
+  road_max_length_km: 6.0
+  road_length_std_km: 1.0
+  capacity_min_vph: 20
+  capacity_max_vph: 100
+  capacity_std_vph: 15.0
+  speed_min_kmh: 35.0
+  speed_max_kmh: 70.0
+  speed_std_kmh: 8.0
+  budget_min: 15.0
+  budget_max: 250.0
+  budget_std: 4.0
+  budget_feasibility_multiplier: 1.0
+  budget_resample_limit: 200
+  trip_count_std: 0.7
