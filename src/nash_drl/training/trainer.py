@@ -237,6 +237,7 @@ class NashDRLTrainer:
         completed_trips = 0
         actor_losses: list[float] = []
         critic_losses: list[float] = []
+        td_losses: list[float] = []
 
         for step_index in range(self.env.max_steps):
             inputs = self.extractor(state)
@@ -313,6 +314,7 @@ class NashDRLTrainer:
                 critic_loss_value = float(losses.critic_loss.detach().cpu())
                 actor_losses.append(actor_loss_value)
                 critic_losses.append(critic_loss_value)
+                td_losses.append(critic_loss_value)
                 td_error_value = float(losses.td_error.abs().mean().detach().cpu())
                 mean_advantage = float(losses.advantage.mean().detach().cpu())
             else:
@@ -328,13 +330,18 @@ class NashDRLTrainer:
                     "reward": raw_reward,
                     "learning_reward_mean": float((rewards * self.config.reward_scale).mean().cpu()),
                     "mean_vehicle_reward": float(reward_result.vehicle_rewards.mean().cpu()),
+                    # In the exact Section-4 squared TD formulation, the
+                    # Actor and Critic objectives have the same scalar value;
+                    # only gradient paths differ because of stop-gradient.
                     "actor_loss": actor_loss_value,
                     "critic_loss": critic_loss_value,
+                    "td_loss": critic_loss_value,
                     "mean_td_error": td_error_value,
                     "mean_advantage": mean_advantage,
                     "actor_gradient_norm": actor_grad,
                     "critic_gradient_norm": critic_grad,
                     "budget_violations": int(reward_result.budget_violations.sum().item()),
+                    "budget_violation_rate": float(reward_result.budget_violations.float().sum().item()) / max(1, int(active_mask.sum().item())),
                     "travel_time_h": float(reward_result.travel_times.sum().item()),
                     "travel_time_s": float(reward_result.travel_times.sum().item()) * 3600.0,
                     "charging_cost": float(reward_result.charging_costs.sum().item()),
@@ -358,9 +365,11 @@ class NashDRLTrainer:
             "mean_step_reward": episode_reward / max(1, len(step_rows)),
             "actor_loss_mean": sum(actor_losses) / max(1, len(actor_losses)),
             "critic_loss_mean": sum(critic_losses) / max(1, len(critic_losses)),
+            "td_loss_mean": sum(td_losses) / max(1, len(td_losses)),
             "actor_gradient_norm_mean": sum(r["actor_gradient_norm"] for r in step_rows) / max(1, len(step_rows)),
             "critic_gradient_norm_mean": sum(r["critic_gradient_norm"] for r in step_rows) / max(1, len(step_rows)),
             "budget_violations": len(violation_vehicle_ids),
+            "budget_violation_rate": len(violation_vehicle_ids) / max(1, len(self.env.problem.vehicles)),
             "budget_violation_events": violation_events,
             "total_travel_time_h": total_travel_time,
             "total_travel_time_s": total_travel_time * 3600.0,

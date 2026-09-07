@@ -99,17 +99,39 @@ class NashSUMOTrainingEnvironment:
 
     def _make_state(self) -> GlobalState:
         assert self.csr is not None
+
+        def current_node_for_state(vehicle: Vehicle) -> int:
+            # A vehicle may have completed its entire trip-set, so
+            # current_trip_index can legitimately equal len(trips). Never
+            # index trips using the completed index. Also do not use
+            # ``current_node or ...`` because node 0 is a valid node ID.
+            if vehicle.current_node is not None:
+                return int(vehicle.current_node)
+            if vehicle.trips and vehicle.current_trip_index < len(vehicle.trips):
+                return int(vehicle.trips[vehicle.current_trip_index].origin)
+            if vehicle.trips:
+                return int(vehicle.trips[-1].destination)
+            return 0
         current_nodes = torch.tensor(
-            [int(v.current_node or v.trips[v.current_trip_index].origin) if v.trips else 0 for v in self.problem.vehicles],
+            [current_node_for_state(v) for v in self.problem.vehicles],
             dtype=torch.long,
         )
         next_destinations = torch.tensor(
-            [int(v.next_destination) if v.trips and v.current_trip_index < len(v.trips) else int(v.current_node or 0)
-             for v in self.problem.vehicles],
+            [
+                int(v.next_destination)
+                if v.trips and v.current_trip_index < len(v.trips)
+                else current_node_for_state(v)
+                for v in self.problem.vehicles
+            ],
             dtype=torch.long,
         )
         final_destinations = torch.tensor(
-            [int(v.final_destination) if v.trips else int(v.current_node or 0) for v in self.problem.vehicles],
+            [
+                int(v.final_destination)
+                if v.trips
+                else current_node_for_state(v)
+                for v in self.problem.vehicles
+            ],
             dtype=torch.long,
         )
         features = encode_agent_features(
