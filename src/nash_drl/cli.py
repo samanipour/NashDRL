@@ -5,6 +5,7 @@ from pathlib import Path
 
 from nash_drl.config import load_yaml
 from nash_drl.training.experiment import run_training
+from ppo.training.ppo_runner import PPOTrainingRunner
 from nash_drl.evaluation.runner import EvaluationRunner
 from nash_drl.environment.simulation import SimulationRunner
 
@@ -79,8 +80,10 @@ def train() -> None:
     parser.add_argument("--mode", choices=["mock", "real"])
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--visualization", type=_bool)
+    parser.add_argument("--algorithm", choices=["nash_drl", "ppo"], default=None)
     args = parser.parse_args()
     config = load_yaml(args.config)
+    algorithm = args.algorithm or config.get("training", {}).get("algorithm", "nash_drl")
     config.setdefault("training", {})
     if args.mode:
         config["training"]["mode"] = args.mode
@@ -88,8 +91,22 @@ def train() -> None:
         config["training"]["episodes"] = args.episodes
     if args.visualization is not None:
         config["training"]["visualization"] = args.visualization
-    result = run_training(config, mode=args.mode)
+    if algorithm == "ppo":
+        # PPO has its own hyperparameter namespace but inherits the common
+        # dataset/environment/network configuration. CLI episode/mode overrides
+        # are mirrored into the PPO namespace.
+        config.setdefault("ppo", {})
+        if args.mode:
+            config["ppo"]["mode"] = args.mode
+        if args.episodes is not None:
+            config["ppo"]["episodes"] = args.episodes
+        if args.visualization is not None:
+            config["ppo"]["visualization"] = args.visualization
+        result = PPOTrainingRunner(config, mode=args.mode).run()
+    else:
+        result = run_training(config, mode=args.mode)
     print("Training completed")
+    print(f"algorithm:        {algorithm}")
     print(f"dataset:          {result['dataset_path']}")
     print(f"output directory: {result['output_dir']}")
     print(f"episodes:         {len(result['episodes'])}")
@@ -102,14 +119,20 @@ def evaluate() -> None:
     parser.add_argument("--mode", choices=["mock", "real"])
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--checkpoint")
+    parser.add_argument("--algorithm", choices=["nash_drl", "ppo"], default=None)
     args = parser.parse_args()
     config = load_yaml(args.config)
+    algorithm = args.algorithm or config.get("evaluation", {}).get("algorithm", "nash_drl")
     config.setdefault("evaluation", {})
     if args.mode:
         config["evaluation"]["mode"] = args.mode
     if args.episodes is not None:
         config["evaluation"]["episodes"] = args.episodes
-    results = EvaluationRunner(config, mode=args.mode, checkpoint=args.checkpoint).run()
+    if algorithm == "ppo":
+        from ppo.evaluation.ppo_runner import PPOEvaluationRunner
+        results = PPOEvaluationRunner(config, mode=args.mode, checkpoint=args.checkpoint).run()
+    else:
+        results = EvaluationRunner(config, mode=args.mode, checkpoint=args.checkpoint).run()
     for result in results:
         print(result)
 
@@ -129,3 +152,24 @@ def visualize() -> None:
         cfg["simulation"]["mode"] = args.mode
     result = SimulationRunner(cfg).run()
     print(result.raw_trace)
+
+
+def train_ppo() -> None:
+    """Installed CLI entry point for the PPO baseline."""
+    parser = argparse.ArgumentParser(description="Train the PPO baseline for NashDRL comparison")
+    parser.add_argument("--config", default="configs/experiments/medium_ppo.yaml")
+    parser.add_argument("--mode", choices=["mock", "real"])
+    parser.add_argument("--episodes", type=int)
+    args = parser.parse_args()
+    config = load_yaml(args.config)
+    config.setdefault("ppo", {})
+    if args.mode:
+        config["ppo"]["mode"] = args.mode
+    if args.episodes is not None:
+        config["ppo"]["episodes"] = args.episodes
+    result = PPOTrainingRunner(config, mode=args.mode).run()
+    print("PPO training completed")
+    print(f"dataset:          {result['dataset_path']}")
+    print(f"output directory: {result['output_dir']}")
+    print(f"episodes:         {len(result['episodes'])}")
+    print(f"steps/episode:    {result['metadata']['steps_per_episode']}")

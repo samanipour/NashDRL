@@ -2016,3 +2016,21 @@ Network design
 
 The current implementation therefore has a clean separation between the **research formulation**, the **SUMO simulation platform**, and the **learning infrastructure**, allowing subsequent research work to focus on analytical Nash solving, policy improvement, experiment design, and statistical evaluation rather than rewriting the system architecture.
 
+
+## PPO Baseline
+
+The project includes a PPO baseline for direct comparison with NashDRL. PPO uses exactly the same dataset generator, SUMO/TraCI environment, state feature extractor, action-to-path mapper, reward model, trip-set horizon, and CSV report schema as NashDRL. The algorithmic difference is the learning objective.
+
+The NashDRL implementation learns the LQ/game-theoretic advantage parameters (`mu`, `P11`, `P12`, `P22`, `Psi`) and uses its analytical Nash decomposition. PPO instead uses a stochastic Gaussian actor and a scalar global value critic and optimizes the standard clipped PPO policy objective against the total system reward. The original PPO algorithm is described by Schulman et al. (2017). Note that PPO itself still uses a standard policy-gradient advantage estimator (this project uses GAE); this must not be confused with the NashDRL LQ advantage function. See `docs/PPO_BASELINE.md` for the distinction.
+
+Run NashDRL and PPO on the same medium benchmark:
+
+```powershell
+python scripts/train.py --config configs/experiments/medium.yaml --mode mock --episodes 300 --algorithm nash_drl
+python scripts/train.py --config configs/experiments/medium_ppo.yaml --mode mock --episodes 300 --algorithm ppo
+python scripts/compare_algorithms.py
+```
+
+The comparison report is written to `outputs/comparison/nash_vs_ppo.csv` and uses the common metrics `total_reward`, `budget_violations`, `budget_violation_rate`, `total_travel_time_h`, and `total_charging_cost`.
+
+The PPO training report is written using the same filenames as NashDRL, including `episode_results.csv`, `step_results.csv`, `vehicle_results.csv`, and `edge_results.csv`, plus PPO-specific diagnostics such as `policy_loss_mean`, `value_loss_mean`, `entropy_mean`, and `approx_kl`.

@@ -1,0 +1,91 @@
+training:
+  algorithm: ppo
+
+project:
+  seed: 2027
+
+ppo:
+  mode: mock
+  episodes: 300
+  gamma: 0.99
+  gae_lambda: 0.95
+  learning_rate: 0.0003
+  clip_range: 0.20
+  value_coef: 0.50
+  entropy_coef: 0.00
+  ppo_epochs: 10
+  minibatch_size: 8
+  normalize_advantage: false
+  max_grad_norm: 0.50
+  reward_scale: 0.01
+  device: cpu
+  seed: 2027
+  output_dir: outputs/ppo_training_medium
+  visualization: false
+  save_checkpoints: true
+  checkpoint_interval: 25
+
+ppo_network:
+  hidden_dim: 64
+  deep_set_dim: 64
+  hidden_layers: 2
+  deep_set_hidden_layers: 2
+  initial_log_std: -0.5
+  min_log_std: -5.0
+  max_log_std: 1.0
+
+evaluation:
+  episodes: 10
+  output_dir: outputs/ppo_test_medium
+  visualization: false
+
+environment:
+  energy_rate_kwh_per_km: 1.0
+  charging_overhead: 6.0
+  charging_fixed_cost: 1.0
+  charging_floor_price: 0.0
+  congestion_alpha: 0.15
+  congestion_beta: 4.0
+  use_model_travel_time: true
+
+reward:
+  travel_time_weight: 1.0
+  charging_cost_weight: 1.0
+  budget_penalty: 500.0
+
+simulation:
+  mode: mock
+  visualization: false
+  sumo:
+    binary: auto
+    step_length_s: 1.0
+    end_time_s: 300
+    teleport_time_s: 120
+    seed: 2027
+    default_edge_speed_kmh: 50.0
+    vehicle_departure_gap_s: 1.0
+    allow_turnarounds: true
+
+# Exactly the same medium dataset generation as the NashDRL medium benchmark.
+mock_data:
+  seed: 2027
+  num_vehicles: 20
+  min_trips_per_vehicle: 1
+  max_trips_per_vehicle: 3
+  graph_nodes: 14
+  graph_extra_edges: 14
+  road_min_length_km: 1.0
+  road_max_length_km: 6.0
+  road_length_std_km: 1.0
+  capacity_min_vph: 20
+  capacity_max_vph: 100
+  capacity_std_vph: 15.0
+  speed_min_kmh: 35.0
+  speed_max_kmh: 70.0
+  speed_std_kmh: 8.0
+  budget_min: 15.0
+  budget_max: 250.0
+  budget_std: 4.0
+  budget_feasibility_multiplier: 1.0
+  budget_resample_limit: 200
+  trip_count_std: 0.7
