@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nash-drl"
-version = "0.5.0"
+version = "0.6.0"
 description = "Nash-DRL research environment with reproducible mock-data generation and SUMO/TraCI simulation."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
