@@ -79,12 +79,15 @@ class TrainingRunner:
         all_vehicles: list[dict[str, Any]] = []
         all_edges: list[dict[str, Any]] = []
         episodes: list[dict[str, Any]] = []
-        for episode in range(train_cfg.episodes):
-            step_rows, vehicle_rows, edge_rows, episode_row = trainer.train_episode(episode)
-            all_steps.extend(step_rows)
-            all_vehicles.extend(vehicle_rows)
-            all_edges.extend(edge_rows)
-            episodes.append(episode_row)
+        try:
+            for episode in range(train_cfg.episodes):
+                step_rows, vehicle_rows, edge_rows, episode_row = trainer.train_episode(episode)
+                all_steps.extend(step_rows)
+                all_vehicles.extend(vehicle_rows)
+                all_edges.extend(edge_rows)
+                episodes.append(episode_row)
+        finally:
+            env.close()
 
         self._write_csv(output_dir / "step_results.csv", all_steps)
         self._write_csv(output_dir / "vehicle_results.csv", all_vehicles)

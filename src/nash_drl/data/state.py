@@ -18,10 +18,12 @@ class GlobalState:
 
     csr_map: CSRMap
     agent_features: Tensor  # [N, F]
-    edge_flow: Tensor  # [E]
+    edge_flow: Tensor  # [E], dynamic traffic flow observed from SUMO at state time
     current_nodes: Tensor  # [N]
     next_destinations: Tensor  # [N]
     final_destinations: Tensor  # [N]
+    flow_time_s: float = 0.0
+    edge_flow_source: str = "unknown"
 
     def validate(self) -> None:
         n = self.agent_features.shape[0]

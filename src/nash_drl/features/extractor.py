@@ -7,7 +7,12 @@ from nash_drl.data import GlobalState, NetworkInputs
 
 
 class StateFeatureExtractor:
-    """Build the two network streams with dataset-relative flow normalization."""
+    """Build network streams; only dynamic edge flow enters the global stream.
+
+    ``state.csr_map`` is intentionally not encoded here: map topology is static
+    across a fixed episode, while ``state.edge_flow`` is the dynamic SUMO
+    traffic-flow observation supplied for the current decision time.
+    """
 
     def __call__(self, state: GlobalState) -> NetworkInputs:
         return self.extract(state)

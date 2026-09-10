@@ -10,6 +10,25 @@ from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, Sumo
 from nash_drl.routing import DijkstraMapper
 
 
+class FakeSession:
+    def __init__(self, scenario, config, *, use_gui=False, label="test"):
+        self.t = 0.0
+        self.closed = False
+
+    def start(self):
+        pass
+
+    def current_time(self):
+        return self.t
+
+    def snapshot_edge_flow(self, edge_count):
+        import torch
+        return torch.zeros(edge_count, dtype=torch.float32)
+
+    def close(self):
+        self.closed = True
+
+
 def test_episode_horizon_is_max_trip_count(tmp_path, monkeypatch):
     graph = DirectedGraph(3, (Edge(0,0,1,1,100), Edge(1,1,2,1,100), Edge(2,2,0,1,100)))
     problem = ProblemDefinition(graph, [
@@ -26,6 +45,7 @@ def test_episode_horizon_is_max_trip_count(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(SumoScenarioBuilder, "build_network", fake_build_network)
+    monkeypatch.setattr("nash_drl.environment.sumo_training.SumoTrafficSession", FakeSession)
 
     env = NashSUMOTrainingEnvironment(
         problem,
@@ -55,6 +75,7 @@ def test_make_state_handles_completed_vehicle_without_index_error(tmp_path, monk
         )
 
     monkeypatch.setattr(SumoScenarioBuilder, "build_network", fake_build_network)
+    monkeypatch.setattr("nash_drl.environment.sumo_training.SumoTrafficSession", FakeSession)
 
     env = NashSUMOTrainingEnvironment(
         problem,

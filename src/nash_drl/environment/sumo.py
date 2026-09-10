@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 import xml.etree.ElementTree as ET
 
 
@@ -259,6 +259,236 @@ def find_sumo_binary(name: str = "sumo") -> str:
     )
 
 
+
+class SumoTrafficSession:
+    """Persistent SUMO/TraCI session for multi-step NashDRL episodes.
+
+    The SUMO process stays alive for the whole episode.  At every RL step the
+    current edge flow is read from SUMO before new controlled vehicles are
+    inserted, and a second snapshot is taken after the selected trip legs are
+    completed.  The latter becomes the traffic-flow component of the next
+    ``GlobalState``.
+    """
+
+    def __init__(
+        self,
+        scenario: SumoScenario,
+        config: SumoConfig,
+        *,
+        use_gui: bool = False,
+        label: str = "nash_drl_episode",
+    ) -> None:
+        self.scenario = scenario
+        self.config = config
+        self.use_gui = use_gui
+        self.label = label
+        self._traci = None
+        self._closed = True
+        self._edge_id_to_int: dict[str, int] = {}
+        self._sim_step_count = 0
+
+    def start(self) -> None:
+        if not self._closed:
+            return
+        try:
+            import traci
+        except ImportError as exc:
+            raise RuntimeError(
+                "TraCI is required for SUMO training. Install traci==1.27.1."
+            ) from exc
+
+        binary_name = "sumo-gui" if self.use_gui else "sumo"
+        if self.config.binary == "auto":
+            binary = find_sumo_binary(binary_name)
+        elif self.config.binary in {"sumo", "sumo-gui"}:
+            binary = find_sumo_binary(self.config.binary)
+        else:
+            binary = str(Path(self.config.binary))
+            if not Path(binary).exists():
+                raise FileNotFoundError(f"Configured SUMO binary does not exist: {binary}")
+
+        cmd = [
+            binary,
+            "-c", str(self.scenario.config_file),
+            "--seed", str(self.config.seed),
+            "--step-length", str(self.config.step_length_s),
+            "--no-step-log",
+        ]
+        # Do not pass --start for GUI training: TraCI must receive control of
+        # simulation advancement. simulationStep() starts/advances the GUI.
+        traci.start(cmd, label=self.label)
+        self._traci = traci.getConnection(self.label)
+        self._closed = False
+        self._sim_step_count = 0
+
+    @property
+    def traci(self):
+        if self._closed or self._traci is None:
+            raise RuntimeError("SUMO session is not started.")
+        return self._traci
+
+    def current_time(self) -> float:
+        return float(self.traci.simulation.getTime())
+
+    def snapshot_edge_flow(self, edge_count: int) -> Any:
+        """Return SUMO's current last-step vehicle count as ``[E]`` tensor."""
+        import torch
+
+        flow = torch.zeros(edge_count, dtype=torch.float32)
+        for edge_id in self.traci.edge.getIDList():
+            if edge_id.startswith(":"):
+                continue
+            try:
+                numeric_id = int(edge_id.lstrip("e"))
+            except ValueError:
+                continue
+            if 0 <= numeric_id < edge_count:
+                flow[numeric_id] = float(
+                    self.traci.edge.getLastStepVehicleNumber(edge_id)
+                )
+        return flow
+
+    def edge_metrics(self, step_index: int) -> list[dict[str, Any]]:
+        metrics: list[dict[str, Any]] = []
+        sim_time = self.current_time()
+        for eid in self.traci.edge.getIDList():
+            if eid.startswith(":"):
+                continue
+            flow = int(self.traci.edge.getLastStepVehicleNumber(eid))
+            metrics.append({
+                "entity_type": "edge",
+                "entity_id": eid,
+                "step": step_index,
+                "sim_time_s": sim_time,
+                "traffic_flow": flow,
+                "vehicle_count": flow,
+                "mean_speed_mps": float(self.traci.edge.getLastStepMeanSpeed(eid)),
+                "occupancy_pct": float(self.traci.edge.getLastStepOccupancy(eid)),
+                "halting_number": int(self.traci.edge.getLastStepHaltingNumber(eid)),
+                "sampled_travel_time_s": float(self.traci.edge.getTraveltime(eid)),
+            })
+        return metrics
+
+    def _route_id(self, step_index: int, vehicle_id: int) -> str:
+        return f"rl_r_{step_index}_{vehicle_id}"
+
+    def _add_vehicle_for_route(self, vehicle_id: int, route: list[int], step_index: int) -> None:
+        if not route:
+            return
+        traci = self.traci
+        vid = f"v{vehicle_id}"
+        rid = self._route_id(step_index, vehicle_id)
+        edges = [f"e{edge_id}" for edge_id in route]
+        traci.route.add(rid, edges)
+        existing = set(traci.vehicle.getIDList())
+        if vid in existing:
+            # This is useful for real-data/background-traffic extensions. For
+            # our controlled vehicles a completed leg normally removes the ID.
+            traci.vehicle.setRoute(vid, edges)
+        else:
+            traci.vehicle.add(
+                vid,
+                rid,
+                typeID="eav",
+                depart="now",
+                departLane="best",
+                departSpeed="max",
+            )
+
+    def execute_routes(
+        self,
+        routes: dict[int, list[int]],
+        *,
+        step_index: int,
+        max_sim_steps: int | None = None,
+    ) -> SumoTripResult:
+        """Execute current RL-step routes while keeping the SUMO session alive."""
+        if not routes:
+            return SumoTripResult(
+                sumo_time_s=self.current_time(),
+                vehicle_metrics=[],
+                edge_metrics=self.edge_metrics(step_index),
+                edge_flow=None,
+            )
+
+        traci = self.traci
+        expected_ids = {f"v{vehicle_id}" for vehicle_id in routes if routes[vehicle_id]}
+        for vehicle_id, route in routes.items():
+            self._add_vehicle_for_route(vehicle_id, route, step_index)
+
+        first_seen: dict[str, float] = {}
+        last_observed: dict[str, dict[str, float]] = {}
+        vehicle_metrics: list[dict[str, Any]] = []
+        edge_metrics: list[dict[str, Any]] = []
+        local_steps = 0
+        limit = max_sim_steps or max(1, int(self.config.end_time_s / self.config.step_length_s))
+
+        while expected_ids and local_steps < limit:
+            traci.simulationStep()
+            self._sim_step_count += 1
+            local_steps += 1
+            sim_time = self.current_time()
+
+            for vid in traci.vehicle.getIDList():
+                if vid not in expected_ids:
+                    continue
+                first_seen.setdefault(vid, sim_time)
+                pos = traci.vehicle.getPosition(vid)
+                last_observed[vid] = {
+                    "distance_m": float(traci.vehicle.getDistance(vid)),
+                    "waiting_time_s": float(traci.vehicle.getWaitingTime(vid)),
+                    "time_loss_s": float(traci.vehicle.getTimeLoss(vid)),
+                    "x": float(pos[0]),
+                    "y": float(pos[1]),
+                }
+
+            edge_metrics.extend(self.edge_metrics(step_index))
+
+            for vid in traci.simulation.getArrivedIDList():
+                if vid not in expected_ids:
+                    continue
+                observed = last_observed.get(vid, {})
+                vehicle_metrics.append({
+                    "vehicle_id": int(vid.lstrip("v")),
+                    "travel_time_s": max(0.0, sim_time - first_seen.get(vid, sim_time)),
+                    "waiting_time_s": float(observed.get("waiting_time_s", 0.0)),
+                    "time_loss_s": float(observed.get("time_loss_s", 0.0)),
+                    "distance_m": float(observed.get("distance_m", 0.0)),
+                })
+                expected_ids.remove(vid)
+
+            if self.current_time() >= self.config.end_time_s:
+                break
+
+        for vid in sorted(expected_ids):
+            numeric_id = int(vid.lstrip("v"))
+            observed = last_observed.get(vid, {})
+            vehicle_metrics.append({
+                "vehicle_id": numeric_id,
+                "travel_time_s": max(0.0, self.current_time() - first_seen.get(vid, self.current_time())),
+                "waiting_time_s": float(observed.get("waiting_time_s", 0.0)),
+                "time_loss_s": float(observed.get("time_loss_s", 0.0)),
+                "distance_m": float(observed.get("distance_m", 0.0)),
+                "incomplete": True,
+            })
+
+        return SumoTripResult(
+            sumo_time_s=self.current_time(),
+            vehicle_metrics=vehicle_metrics,
+            edge_metrics=edge_metrics,
+            edge_flow=None,
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self.traci.close()
+        finally:
+            self._closed = True
+            self._traci = None
+
+
 def run_sumo(
     scenario: SumoScenario,
     config: SumoConfig,
@@ -363,6 +593,7 @@ class SumoTripResult:
     sumo_time_s: float
     vehicle_metrics: list[dict[str, Any]]
     edge_metrics: list[dict[str, Any]]
+    edge_flow: Any | None = None
 
 
 def run_sumo_trip(

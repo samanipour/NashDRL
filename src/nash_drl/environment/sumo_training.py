@@ -15,7 +15,7 @@ from nash_drl.routing import ActionToPathMapper
 
 from .reward import RewardModel, RewardResult
 from .env import EnvironmentConfig
-from .sumo import SumoConfig, SumoScenarioBuilder, run_sumo_trip
+from .sumo import SumoConfig, SumoScenarioBuilder, SumoTrafficSession, run_sumo_trip
 
 
 @dataclass(slots=True)
@@ -66,6 +66,8 @@ class NashSUMOTrainingEnvironment:
         self.cumulative_costs: dict[int, float] = {}
         self.cumulative_travel_times: dict[int, float] = {}
         self.sumo_scenario = None
+        self.sumo_session: SumoTrafficSession | None = None
+        self.flow_history: dict[int, torch.Tensor] = {}
 
     @property
     def num_agents(self) -> int:
@@ -80,6 +82,9 @@ class NashSUMOTrainingEnvironment:
         return max((len(v.trips) for v in self.problem.vehicles), default=0)
 
     def reset(self, *, episode_index: int = 0) -> GlobalState:
+        # A training environment owns exactly one persistent SUMO session per
+        # episode. Ensure a previous episode cannot leak its TraCI connection.
+        self.close()
         self.episode_index = episode_index
         self.step_index = 0
         self.problem = deepcopy(self.original_problem)
@@ -93,11 +98,24 @@ class NashSUMOTrainingEnvironment:
         episode_dir.mkdir(parents=True, exist_ok=True)
         # Build the network once per episode; route files are replaced per step.
         self.sumo_scenario = SumoScenarioBuilder(self.problem, self.config.sumo).build_network(episode_dir / "network")
-        self.state = self._make_state()
+        self.sumo_session = SumoTrafficSession(
+            self.sumo_scenario,
+            self.config.sumo,
+            use_gui=self.use_gui,
+            label=f"nash_drl_episode_{self.episode_index}",
+        )
+        self.sumo_session.start()
+
+        # t=0 traffic-flow snapshot comes from the live SUMO simulation.  This
+        # snapshot is the edge-flow component of the first neural-network state.
+        initial_flow = self.sumo_session.snapshot_edge_flow(self.num_edges)
+        self.csr.edge_flow = initial_flow.clone()
+        self.flow_history[0] = initial_flow.clone()
+        self.state = self._make_state(flow_time_s=self.sumo_session.current_time())
         self.state.validate()
         return self.state
 
-    def _make_state(self) -> GlobalState:
+    def _make_state(self, *, flow_time_s: float = 0.0) -> GlobalState:
         assert self.csr is not None
 
         def current_node_for_state(vehicle: Vehicle) -> int:
@@ -149,10 +167,12 @@ class NashSUMOTrainingEnvironment:
             current_nodes=current_nodes,
             next_destinations=next_destinations,
             final_destinations=final_destinations,
+            flow_time_s=flow_time_s,
+            edge_flow_source="sumo",
         )
 
     def step(self, action: Action) -> tuple[GlobalState, RewardResult, bool, dict[str, Any]]:
-        if self.state is None or self.sumo_scenario is None or self.csr is None:
+        if self.state is None or self.sumo_scenario is None or self.csr is None or self.sumo_session is None:
             raise RuntimeError("Environment must be reset before step().")
         if action.edge_weights.shape != (self.num_agents, self.num_edges):
             raise ValueError(
@@ -185,7 +205,7 @@ class NashSUMOTrainingEnvironment:
             for i in instant:
                 self.problem.vehicles[i].current_trip_index += 1
             done = self.step_index >= self.max_steps
-            self.state = self._make_state()
+            self.state = self._make_state(flow_time_s=self.sumo_session.current_time())
             agent_done = [bool(v.current_trip_index >= len(v.trips)) for v in self.problem.vehicles]
             if done:
                 agent_done = [True] * self.num_agents
@@ -194,22 +214,28 @@ class NashSUMOTrainingEnvironment:
         step_dir = self.sumo_scenario.directory.parent / f"step_{self.step_index:03d}"
         if step_dir.exists():
             shutil.rmtree(step_dir)
-        trip_metrics = run_sumo_trip(
-            self.problem,
-            self.sumo_scenario.net_file,
+        # Refresh t-flow immediately before executing the selected routes.  This
+        # is the authoritative SUMO traffic state available to the environment.
+        flow_t = self.sumo_session.snapshot_edge_flow(self.num_edges)
+        flow_time_t = self.sumo_session.current_time()
+        self.csr.edge_flow = flow_t.clone()
+        self.state.edge_flow = flow_t.clone()
+        self.state.csr_map.edge_flow = flow_t.clone()
+        self.flow_history[self.step_index] = flow_t.clone()
+
+        trip_metrics = self.sumo_session.execute_routes(
             active_routes,
-            self.config.sumo,
-            step_dir,
-            use_gui=self.use_gui,
+            step_index=self.step_index,
         ) if active_routes else None
 
-        # Compute paper-defined edge flow, charging price, cost and congestion from
-        # the selected paths. SUMO supplies realized travel telemetry.
-        edge_flow = torch.zeros(self.num_edges, dtype=torch.float32)
+        # Reward-model flow includes the observed background traffic at time t
+        # plus the controlled routes selected for this decision.  The resulting
+        # post-step SUMO flow is stored separately and becomes state t+1.
+        planned_flow = torch.zeros(self.num_edges, dtype=torch.float32)
         for route in paths.edge_ids:
             for edge_id in route:
-                edge_flow[edge_id] += 1.0
-        self.csr.edge_flow = edge_flow
+                planned_flow[edge_id] += 1.0
+        edge_flow = flow_t + planned_flow
 
         n = self.num_agents
         travel_times = torch.zeros(n, dtype=torch.float32)
@@ -229,7 +255,7 @@ class NashSUMOTrainingEnvironment:
             model_travel_time_h = 0.0
             if len(path) > 0:
                 lengths = self.csr.edge_len[edge_ids]
-                flows = self.csr.edge_flow[edge_ids]
+                flows = edge_flow[edge_ids]
                 caps = self.csr.edge_cap[edge_ids]
                 speeds = torch.full_like(lengths, float(vehicle.free_flow_speed_kmh))
                 from .energy_cost import edge_energy_cost
@@ -326,10 +352,15 @@ class NashSUMOTrainingEnvironment:
             if self.problem.vehicles[i].current_trip_index < len(self.problem.vehicles[i].trips):
                 self.problem.vehicles[i].current_node = self.problem.vehicles[i].trips[self.problem.vehicles[i].current_trip_index].origin
 
+        # Query SUMO once more after executing the current decision. This is the
+        # authoritative t+1 traffic-flow snapshot and is used by the next state.
+        flow_t1 = self.sumo_session.snapshot_edge_flow(self.num_edges)
+        self.csr.edge_flow = flow_t1.clone()
+
         self.step_index += 1
         done = self.step_index >= self.max_steps
-        self.state = self._make_state()
-        self.state.csr_map.edge_flow = self.csr.edge_flow
+        self.flow_history[self.step_index] = flow_t1.clone()
+        self.state = self._make_state(flow_time_s=self.sumo_session.current_time())
         agent_done = [
             bool(v.current_trip_index >= len(v.trips)) for v in self.problem.vehicles
         ]
@@ -339,11 +370,21 @@ class NashSUMOTrainingEnvironment:
             "paths": paths,
             "vehicle_metrics": vehicle_metrics,
             "edge_metrics": trip_metrics.edge_metrics if trip_metrics else [],
-            "sumo_time_s": float(trip_metrics.sumo_time_s) if trip_metrics else 0.0,
+            "sumo_time_s": float(trip_metrics.sumo_time_s) if trip_metrics else self.sumo_session.current_time(),
             "completed_trips": sum(min(self.step_index, len(v.trips)) for v in self.problem.vehicles),
             "agent_done": agent_done,
+            "flow_time_t_s": float(flow_time_t),
+            "flow_time_t1_s": float(self.state.flow_time_s),
+            "edge_flow_t": flow_t.tolist(),
+            "edge_flow_t1": flow_t1.tolist(),
         }
         return self.state, reward, done, info
+
+    def close(self) -> None:
+        """Close the persistent SUMO/TraCI session for the current episode."""
+        if self.sumo_session is not None:
+            self.sumo_session.close()
+            self.sumo_session = None
 
     def _zero_reward(self) -> RewardResult:
         n = self.num_agents

@@ -954,6 +954,29 @@ This supports variable trip-set lengths across vehicles.
 
 ---
 
+## 2.1.3 Dynamic traffic flow as a state variable
+
+The current implementation treats road topology and traffic flow differently. The CSR map remains available to routing/environment code, but the static graph topology is not passed to the Actor or Critic. The dynamic edge-flow vector is part of the neural-network state.
+
+For the SUMO training environment, one persistent TraCI session is maintained for the entire episode. At the beginning of `t=0`, SUMO is queried for an `[E]` edge-flow snapshot. After the selected trip legs are executed, SUMO is queried again and the resulting snapshot becomes `GlobalState.edge_flow` for `t+1`.
+
+Relevant implementation:
+
+```text
+src/nash_drl/environment/sumo.py
+    SumoTrafficSession.start()
+    SumoTrafficSession.snapshot_edge_flow()
+    SumoTrafficSession.execute_routes()
+
+src/nash_drl/environment/sumo_training.py
+    NashSUMOTrainingEnvironment.reset()
+    NashSUMOTrainingEnvironment.step()
+```
+
+This prevents the previous behavior where each RL step restarted SUMO and consequently began with a zero-flow map. The detailed timing contract is documented in `docs/TRAFFIC_FLOW_STATE.md`.
+
+---
+
 ## 2.1.3 Edge flow
 
 The mathematical model defines:
