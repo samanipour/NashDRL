@@ -9,7 +9,7 @@ from ppo.training import PPOTrainingRunner
 
 def _build_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--config", default="configs/experiments/medium_ppo.yaml")
+    parser.add_argument("--config", default="configs/experiments/medium.yaml")
     parser.add_argument("--mode", choices=["mock", "real"])
     parser.add_argument("--episodes", type=int)
     return parser

@@ -2027,10 +2027,15 @@ Run NashDRL and PPO on the same medium benchmark:
 
 ```powershell
 python scripts/train.py --config configs/experiments/medium.yaml --mode mock --episodes 300 --algorithm nash_drl
-python scripts/train.py --config configs/experiments/medium_ppo.yaml --mode mock --episodes 300 --algorithm ppo
+python scripts/train.py --config configs/experiments/medium.yaml --mode mock --episodes 300 --algorithm ppo
 python scripts/compare_algorithms.py
 ```
 
 The comparison report is written to `outputs/comparison/nash_vs_ppo.csv` and uses the common metrics `total_reward`, `budget_violations`, `budget_violation_rate`, `total_travel_time_h`, and `total_charging_cost`.
 
 The PPO training report is written using the same filenames as NashDRL, including `episode_results.csv`, `step_results.csv`, `vehicle_results.csv`, and `edge_results.csv`, plus PPO-specific diagnostics such as `policy_loss_mean`, `value_loss_mean`, `entropy_mean`, and `approx_kl`.
+
+
+### Paired experiments
+
+NashDRL and PPO use the same `configs/experiments/small.yaml`, `medium.yaml`, and `large.yaml`; shared dataset/environment/reward/simulation sections are common, while algorithm-specific settings live under `training` and `ppo`/`ppo_network`.

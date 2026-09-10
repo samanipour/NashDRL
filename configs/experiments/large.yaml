@@ -25,6 +25,36 @@ training:
   save_checkpoints: true
   checkpoint_interval: 5
 
+ppo:
+  mode: mock
+  episodes: 20
+  gamma: 0.99
+  gae_lambda: 0.95
+  learning_rate: 0.0003
+  clip_range: 0.20
+  value_coef: 0.50
+  entropy_coef: 0.00
+  ppo_epochs: 10
+  minibatch_size: 16
+  normalize_advantage: false
+  max_grad_norm: 0.50
+  reward_scale: 0.01
+  device: cpu
+  seed: 123
+  output_dir: outputs/ppo_training_large
+  visualization: false
+  save_checkpoints: true
+  checkpoint_interval: 5
+
+ppo_network:
+  hidden_dim: 64
+  deep_set_dim: 64
+  hidden_layers: 2
+  deep_set_hidden_layers: 2
+  initial_log_std: -0.5
+  min_log_std: -5.0
+  max_log_std: 1.0
+
 evaluation:
   episodes: 5
   output_dir: outputs/test_large
@@ -69,7 +99,7 @@ mock_data:
   road_length_std_km: 2.0
   capacity_min_vph: 15
   capacity_max_vph: 150
-  capacity_std_vph: 25
+  capacity_std_vph: 25.0
   speed_min_kmh: 25.0
   speed_max_kmh: 80.0
   speed_std_kmh: 12.0

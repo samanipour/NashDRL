@@ -149,6 +149,7 @@ class PPOTrainer:
         stats.update(
             {
                 "total_reward": total_reward,
+                "mean_step_reward": total_reward / max(1, len(steps)),
                 "budget_violations": len(violation_vehicle_ids),
                 "budget_violation_events": violation_events,
                 "total_travel_time_h": travel_time,
@@ -248,6 +249,7 @@ class PPOTrainer:
             "episode": episode_index,
             "algorithm": "ppo",
             "total_reward": stats["total_reward"],
+            "mean_step_reward": stats["mean_step_reward"],
             "budget_violations": stats["budget_violations"],
             "budget_violation_rate": stats["budget_violations"] / max(1, len(self.env.problem.vehicles)),
             "budget_violation_events": stats["budget_violation_events"],

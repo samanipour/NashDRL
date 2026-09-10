@@ -33,3 +33,8 @@ The PPO package may import shared simulation, state, routing, feature-extraction
 | `nash_drl.routing` | shared deterministic action-to-path mapping |
 
 This separation makes the experimental comparison explicit: both algorithms consume the same environment, state representation, route mapper and reward model, while their policy/value-learning implementations remain independent.
+
+
+## Shared experiment configuration
+
+NashDRL and PPO are paired at the experiment level. Each experiment is defined by a single file under `configs/experiments/`, such as `small.yaml`, `medium.yaml`, or `large.yaml`. The shared `project`, `environment`, `reward`, `simulation`, and `mock_data` sections are identical inputs to both algorithms. Algorithm-specific parameters live in `training` for NashDRL and `ppo`/`ppo_network` for PPO. This guarantees that a paired run uses the same generated map, vehicles, trip sets, reward model, SUMO configuration, and state representation.

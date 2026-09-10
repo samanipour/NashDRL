@@ -49,6 +49,8 @@ def plot_training_history(
     paths: list[Path] = []
     x = [int(row["episode"]) for row in history]
     for key, ylabel, filename in metrics:
+        if not all(key in row for row in history):
+            continue
         raw = [float(row[key]) for row in history]
         smooth = _rolling(raw, rolling_window)
         fig, ax = plt.subplots(figsize=(9, 5))
@@ -70,6 +72,8 @@ def plot_training_history(
         ("actor_loss_mean", "Actor objective (shared TD residual)", "actor_loss.png"),
         ("critic_loss_mean", "Critic objective (shared TD residual)", "critic_loss.png"),
     ]:
+        if not all(key in row for row in history):
+            continue
         raw = [float(row[key]) for row in history]
         smooth = _rolling(raw, rolling_window)
         fig, ax = plt.subplots(figsize=(9, 5))

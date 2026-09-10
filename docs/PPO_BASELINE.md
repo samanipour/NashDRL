@@ -82,7 +82,7 @@ with multiple minibatch epochs over the on-policy rollout.
 
 ## Reproducibility
 
-`configs/experiments/medium.yaml` and `configs/experiments/medium_ppo.yaml` intentionally share the same `mock_data` block and seed. Running both therefore reconstructs the same mock graph, vehicles, and fixed trip sets. Keep these sections identical when designing paired experiments.
+`configs/experiments/medium.yaml` and `configs/experiments/medium.yaml` intentionally share the same `mock_data` block and seed. Running both therefore reconstructs the same mock graph, vehicles, and fixed trip sets. Keep these sections identical when designing paired experiments.
 
 ## Interpretation of budget violations
 

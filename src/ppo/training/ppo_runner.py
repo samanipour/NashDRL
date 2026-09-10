@@ -132,7 +132,7 @@ class PPOTrainingRunner:
         if mode == "real":
             raw_path = self.config.get("ppo", {}).get("dataset_path") or self.config.get("training", {}).get("dataset_path") or self.config.get("simulation", {}).get("dataset_path")
             if not raw_path:
-                raise ValueError("Real PPO training requires ppo.dataset_path or training.dataset_path")
+                raise ValueError("Real PPO training requires training.dataset_path (or simulation.dataset_path)")
             path = Path(raw_path)
             if not path.exists():
                 raise FileNotFoundError(path)
