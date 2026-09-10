@@ -2039,3 +2039,24 @@ The PPO training report is written using the same filenames as NashDRL, includin
 ### Paired experiments
 
 NashDRL and PPO use the same `configs/experiments/small.yaml`, `medium.yaml`, and `large.yaml`; shared dataset/environment/reward/simulation sections are common, while algorithm-specific settings live under `training` and `ppo`/`ppo_network`.
+
+## NashDRL v0.8.1 — LQ advantage correction
+
+This version formalizes the NashDRL advantage/value tensor semantics used by the implementation.
+For one state with `N` vehicles and `E` edges:
+
+- Actor LQ parameters (`mu`, `p11`, `p12`, `p22`, `psi`) are `[N,E]`.
+- The executed action `u` is `[N,E]`.
+- The local LQ advantage `A(x,u)` is `[N]`, one value for each focal vehicle.
+- The Critic output `V(x)` is `[N]`, one baseline value per vehicle.
+- The TD target and TD error are `[N]` before reduction.
+- For a batch of size `B`, the corresponding per-agent tensors are `[B,N]` and edge-wise tensors are `[B,N,E]`.
+- The optimization losses are scalar reductions over the active-agent mask.
+
+The `P22` term follows the V12 formulation exactly as a sum of individual rival squared norms,
+`-sum_{j != i} ||z_j||^2_{P22,i}`. It must not be implemented as
+`-||sum_{j != i} z_j||^2_{P22,i}`, because the latter introduces additional cross-rival terms.
+
+The Actor and Critic scalar objective values can be numerically equal in a given update because they
+use the same squared TD residual. Their optimization paths are nevertheless different: the Critic
+detaches the advantage and the Actor detaches the value estimate, as specified by the model design.

@@ -29,3 +29,22 @@ def test_lq_advantage_batch_shape():
     action = torch.randn(b, n, e)
     output = LQAdvantage()(params, action)
     assert output.shape == (b, n)
+
+
+def test_lq_advantage_uses_sum_of_rival_squared_norms_not_squared_sum():
+    # One edge is enough to distinguish:
+    # z_1 = 1, z_2 = -1 => sum_j z_j = 0, but sum_j z_j^2 = 2.
+    params = ActorOutput(
+        mu=torch.zeros(3, 1),
+        p11=torch.zeros(3, 1),
+        p12=torch.zeros(3, 1),
+        p22=torch.ones(3, 1),
+        psi=torch.zeros(3, 1),
+    )
+    action = torch.tensor([[0.0], [1.0], [-1.0]])
+    output = LQAdvantage()(params, action)
+    # Agent 0 sees rivals +1 and -1 -> -2.
+    # Agent 1 sees rivals 0 and -1 -> -1.
+    # Agent 2 sees rivals 0 and +1 -> -1.
+    expected = torch.tensor([-2.0, -1.0, -1.0])
+    assert torch.allclose(output, expected)
