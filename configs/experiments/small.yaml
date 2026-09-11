@@ -1,14 +1,12 @@
 project:
   seed: 42
-
-# NashDRL training configuration.
 training:
   mode: mock
   episodes: 3
   gamma: 0.99
   actor_lr: 0.0003
   critic_lr: 0.0003
-  exploration_sigma: 0.10
+  exploration_sigma: 0.1
   exploration_sigma_final: 0.02
   exploration_decay_episodes: 100
   reward_scale: 0.01
@@ -27,22 +25,19 @@ training:
   budget_constraints_enabled: true
   constraint_repair_passes: 2
   checkpoint_interval: 2
-
-# PPO baseline configuration. Both algorithms use this same experiment file,
-# dataset, environment, reward and simulation sections.
 ppo:
   mode: mock
   episodes: 3
   gamma: 0.99
   gae_lambda: 0.95
   learning_rate: 0.0003
-  clip_range: 0.20
-  value_coef: 0.50
-  entropy_coef: 0.00
+  clip_range: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.0
   ppo_epochs: 10
   minibatch_size: 16
   normalize_advantage: false
-  max_grad_norm: 0.50
+  max_grad_norm: 0.5
   reward_scale: 0.01
   device: cpu
   seed: 42
@@ -50,15 +45,13 @@ ppo:
   visualization: false
   save_checkpoints: true
   checkpoint_interval: 2
-
 network:
   hidden_dim: 32
   deep_set_dim: 64
   actor_hidden_layers: 4
   critic_hidden_layers: 4
   deep_set_hidden_layers: 2
-  interaction_coupling_ratio: 0.90
-
+  interaction_coupling_ratio: 0.9
 ppo_network:
   hidden_dim: 64
   deep_set_dim: 64
@@ -67,12 +60,11 @@ ppo_network:
   initial_log_std: -0.5
   min_log_std: -5.0
   max_log_std: 1.0
-
 evaluation:
   episodes: 2
   output_dir: outputs/test_small
   visualization: false
-
+  reward_profile: common
 environment:
   energy_rate_kwh_per_km: 1.0
   charging_overhead: 6.0
@@ -81,12 +73,30 @@ environment:
   congestion_alpha: 0.15
   congestion_beta: 4.0
   use_model_travel_time: true
-
 reward:
-  travel_time_weight: 1.0
-  charging_cost_weight: 1.0
-  budget_penalty: 500.0
-
+  common:
+    travel_time_weight: 1.0
+    charging_cost_weight: 1.0
+    budget_penalty: 100.0
+  nash_drl:
+    travel_time_weight: 1.0
+    charging_cost_weight: 1.0
+    budget_penalty: 500.0
+  ppo:
+    travel_time_weight: 1.0
+    charging_cost_weight: 1.0
+    budget_penalty: 20.0
+  notes:
+    common: Common evaluation reward; use for algorithm-neutral reporting.
+    nash_drl: Constraint-dominant learning reward; large P makes hard-budget violations
+      strongly unattractive.
+    ppo: Sacrifice-permitting learning reward. P=20 is intentionally below the regular-loss
+      scale of a meaningful subset of costly routes, so PPO can improve aggregate
+      reward by accepting additional hard-budget violations when the system-level
+      trade-off is favorable.
+    condition: For a violating route to be individually preferred over its regular
+      reward, P must be smaller than w_T*T + w_C*C. System-level dominance additionally
+      depends on the aggregate trade-off across affected vehicles.
 simulation:
   mode: mock
   visualization: false
@@ -99,7 +109,6 @@ simulation:
     default_edge_speed_kmh: 50.0
     vehicle_departure_gap_s: 2.0
     allow_turnarounds: true
-
 mock_data:
   seed: 42
   num_vehicles: 6
@@ -119,6 +128,6 @@ mock_data:
   budget_min: 80.0
   budget_max: 240.0
   budget_std: 30.0
-  budget_feasibility_multiplier: 1.20
+  budget_feasibility_multiplier: 1.2
   budget_resample_limit: 100
   trip_count_std: 0.8

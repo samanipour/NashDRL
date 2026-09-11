@@ -35,3 +35,12 @@ def test_ppo_history_can_be_plotted_with_shared_visualizer(tmp_path):
     assert "mean_step_reward.png" in names
     assert "actor_loss.png" in names
     assert "critic_loss.png" in names
+
+
+def test_experiments_define_common_nash_and_ppo_reward_profiles():
+    from pathlib import Path
+    for name in ("small.yaml", "medium.yaml", "large.yaml"):
+        cfg = load_yaml(Path("configs/experiments") / name)
+        assert set(("common", "nash_drl", "ppo")).issubset(cfg["reward"])
+        assert cfg["reward"]["nash_drl"]["budget_penalty"] > cfg["reward"]["common"]["budget_penalty"]
+        assert cfg["reward"]["ppo"]["budget_penalty"] < cfg["reward"]["common"]["budget_penalty"]

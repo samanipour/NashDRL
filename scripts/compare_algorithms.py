@@ -13,6 +13,7 @@ def main() -> None:
     parser.add_argument("--nash", default=None, help="Override NashDRL episode_results.csv path")
     parser.add_argument("--ppo", default=None, help="Override PPO episode_results.csv path")
     parser.add_argument("--output", default="outputs/comparison/nash_vs_ppo.csv")
+    parser.add_argument("--reward-metric", choices=["learning", "benchmark"], default="benchmark", help="Which total reward metric to emphasize in the console summary.")
     args = parser.parse_args()
 
     config = load_yaml(args.config)
@@ -25,6 +26,13 @@ def main() -> None:
     print(f"PPO results:        {ppo_path}")
     print(f"comparison:         {Path(args.output)}")
     print(f"episodes compared:  {len(rows)}")
+    if rows:
+        metric = "nash_benchmark_total_reward" if args.reward_metric == "benchmark" else "nash_total_reward"
+        metric_b = "ppo_benchmark_total_reward" if args.reward_metric == "benchmark" else "ppo_total_reward"
+        nash_mean = sum(r[metric] for r in rows) / len(rows)
+        ppo_mean = sum(r[metric_b] for r in rows) / len(rows)
+        print(f"mean NashDRL {args.reward_metric} reward: {nash_mean:.3f}")
+        print(f"mean PPO {args.reward_metric} reward:     {ppo_mean:.3f}")
 
 
 if __name__ == "__main__":

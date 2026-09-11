@@ -8,7 +8,7 @@ import torch
 from nash_drl.config import load_yaml
 from nash_drl.data.mock_dataset import MockDataConfig, MockDatasetGenerator, load_problem
 from nash_drl.environment.env import EnvironmentConfig
-from nash_drl.environment.reward import RewardConfig, RewardModel
+from nash_drl.environment.reward import RewardConfig, RewardModel, build_reward_config
 from nash_drl.environment.sumo import SumoConfig
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
 from nash_drl.models import ActorNetwork, CriticNetwork, TargetCriticNetwork
@@ -58,7 +58,7 @@ class EvaluationRunner:
                 sumo=SumoConfig(**self.config.get("simulation", {}).get("sumo", {})),
                 environment=EnvironmentConfig(**self.config.get("environment", {})),
             ),
-            RewardModel(RewardConfig(**self.config.get("reward", {}))),
+            RewardModel(build_reward_config(self.config, self.config.get("evaluation", {}).get("reward_profile", "common"))),
             BudgetAwareDijkstraMapper(
                 energy_rate_kwh_per_km=float(self.config.get("environment", {}).get("energy_rate_kwh_per_km", 1.0)),
                 charging_overhead=float(self.config.get("environment", {}).get("charging_overhead", 6.0)),

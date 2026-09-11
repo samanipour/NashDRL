@@ -4,7 +4,7 @@ import torch
 
 import nash_drl.environment.sumo_training as st
 from nash_drl.config import load_yaml
-from nash_drl.environment.reward import RewardConfig, RewardModel
+from nash_drl.environment.reward import RewardModel, build_reward_config
 from nash_drl.environment.sumo import SumoScenario, SumoTripResult
 from nash_drl.environment.env import EnvironmentConfig
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
@@ -68,7 +68,7 @@ def test_sumo_flow_is_loaded_into_state_and_carried_to_next_step(tmp_path, monke
     env = NashSUMOTrainingEnvironment(
         problem,
         SumoTrainingEnvironmentConfig(sumo=sumo_cfg, environment=env_cfg),
-        RewardModel(RewardConfig(**cfg["reward"])),
+        RewardModel(build_reward_config(cfg, "common")),
         DijkstraMapper(),
         output_root=tmp_path / "sumo_runs",
     )

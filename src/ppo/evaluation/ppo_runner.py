@@ -6,7 +6,7 @@ from typing import Any
 
 from nash_drl.data.mock_dataset import MockDataConfig, MockDatasetGenerator, load_problem
 from nash_drl.environment.env import EnvironmentConfig
-from nash_drl.environment.reward import RewardConfig, RewardModel
+from nash_drl.environment.reward import RewardConfig, RewardModel, build_reward_config
 from nash_drl.environment.sumo import SumoConfig
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
 from ppo.models import PPOActorCritic
@@ -66,7 +66,7 @@ class PPOEvaluationRunner:
                 sumo=SumoConfig(**sumo_raw),
                 environment=EnvironmentConfig(**self.config.get("environment", {})),
             ),
-            RewardModel(RewardConfig(**self.config.get("reward", {}))),
+            RewardModel(build_reward_config(self.config, self.config.get("evaluation", {}).get("reward_profile", "common"))),
             DijkstraMapper(),
             output_root=Path(self.config.get("evaluation", {}).get("output_dir", "outputs/ppo_evaluation")) / "sumo_runs",
             use_gui=bool(self.config.get("evaluation", {}).get("visualization", False)),

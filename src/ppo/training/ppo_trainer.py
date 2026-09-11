@@ -70,6 +70,7 @@ class PPOTrainer:
         state = self.env.reset(episode_index=episode_index)
         steps: list[PPORolloutStep] = []
         total_reward = 0.0
+        benchmark_total_reward = 0.0
         violations = 0
         travel_time = 0.0
         charging_cost = 0.0
@@ -102,6 +103,9 @@ class PPOTrainer:
             )
 
             total_reward += float(reward_result.total_reward.detach().cpu())
+            benchmark_value = info.get("benchmark_reward_total")
+            if benchmark_value is not None:
+                benchmark_total_reward += float(benchmark_value)
             step_violations = int(reward_result.budget_violations.sum().item())
             violations += step_violations
             violation_events += step_violations
@@ -149,6 +153,8 @@ class PPOTrainer:
         stats.update(
             {
                 "total_reward": total_reward,
+                "learning_total_reward": total_reward,
+                "benchmark_total_reward": benchmark_total_reward,
                 "mean_step_reward": total_reward / max(1, len(steps)),
                 "budget_violations": len(violation_vehicle_ids),
                 "budget_violation_events": violation_events,
@@ -249,6 +255,8 @@ class PPOTrainer:
             "episode": episode_index,
             "algorithm": "ppo",
             "total_reward": stats["total_reward"],
+            "learning_total_reward": stats.get("learning_total_reward", stats["total_reward"]),
+            "benchmark_total_reward": stats.get("benchmark_total_reward", stats["total_reward"]),
             "mean_step_reward": stats["mean_step_reward"],
             "budget_violations": stats["budget_violations"],
             "budget_violation_rate": stats["budget_violations"] / max(1, len(self.env.problem.vehicles)),

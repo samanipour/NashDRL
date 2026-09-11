@@ -232,6 +232,7 @@ class NashDRLTrainer:
         vehicle_rows: list[dict[str, Any]] = []
         edge_rows: list[dict[str, Any]] = []
         episode_reward = 0.0
+        benchmark_episode_reward = 0.0
         violation_vehicle_ids: set[int] = set()
         violation_events = 0
         total_travel_time = 0.0
@@ -298,6 +299,9 @@ class NashDRLTrainer:
 
             raw_reward = float(reward_result.total_reward.detach().cpu())
             episode_reward += raw_reward
+            benchmark_value = info.get("benchmark_reward_total")
+            if benchmark_value is not None:
+                benchmark_episode_reward += float(benchmark_value)
             violation_events += int(reward_result.budget_violations.sum().item())
             violation_vehicle_ids.update(
                 i for i, flag in enumerate(reward_result.budget_violations.tolist()) if flag
@@ -366,6 +370,8 @@ class NashDRLTrainer:
             "episode": episode_index,
             "steps": len(step_rows),
             "total_reward": episode_reward,
+            "learning_total_reward": episode_reward,
+            "benchmark_total_reward": benchmark_episode_reward,
             "mean_step_reward": episode_reward / max(1, len(step_rows)),
             "actor_loss_mean": sum(actor_losses) / max(1, len(actor_losses)),
             "critic_loss_mean": sum(critic_losses) / max(1, len(critic_losses)),

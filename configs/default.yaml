@@ -1,16 +1,15 @@
 project:
   name: nash-drl
   seed: 42
-
 simulation:
-  mode: mock                       # mock | real
+  mode: mock
   visualization: false
   generate_analytic_report: true
   output_dir: outputs/demo
   dataset_path: datasets/generated/mock_seed_42/dataset.json
   backend: traci
   sumo:
-    binary: auto                   # auto | sumo | sumo-gui | absolute path
+    binary: auto
     step_length_s: 1.0
     end_time_s: 300
     teleport_time_s: 120
@@ -21,7 +20,6 @@ simulation:
   salabim:
     enabled: true
     replay_speed: 1.0
-
 mock_data:
   seed: 42
   num_vehicles: 12
@@ -41,7 +39,7 @@ mock_data:
   budget_min: 75.0
   budget_max: 300.0
   budget_std: 45.0
-  budget_feasibility_multiplier: 1.20
+  budget_feasibility_multiplier: 1.2
   budget_resample_limit: 100
   trip_count_std: 0.9
   energy_rate_kwh_per_km: 1.0
@@ -51,13 +49,11 @@ mock_data:
   congestion_alpha: 0.15
   congestion_beta: 4.0
   vehicle_departure_gap_s: 2.0
-
 network:
   hidden_dim: 32
   deep_set_dim: 64
   actor_hidden_layers: 4
   critic_hidden_layers: 4
-
 environment:
   energy_rate_kwh_per_km: 1.0
   charging_overhead: 6.0
@@ -67,12 +63,24 @@ environment:
   congestion_beta: 4.0
   max_steps: 300
   use_model_travel_time: true
-
 reward:
-  travel_time_weight: 1.0
-  charging_cost_weight: 1.0
-  budget_penalty: 100.0
-
+  common:
+    travel_time_weight: 1.0
+    charging_cost_weight: 1.0
+    budget_penalty: 100.0
+  nash_drl:
+    travel_time_weight: 1.0
+    charging_cost_weight: 1.0
+    budget_penalty: 500.0
+  ppo:
+    travel_time_weight: 1.0
+    charging_cost_weight: 1.0
+    budget_penalty: 20.0
+  notes:
+    condition: For a vehicle-level outcome, violation is reward-preferred iff P <
+      w_T*T + w_C*C. System-level PPO superiority additionally requires aggregate
+      travel-time/charging savings from sacrificed vehicles to exceed the reward loss
+      caused by affected vehicles.
 training:
   mode: mock
   episodes: 20
@@ -96,7 +104,6 @@ training:
   visualization: false
   save_checkpoints: true
   checkpoint_interval: 5
-
 evaluation:
   mode: mock
   episodes: 5

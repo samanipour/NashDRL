@@ -2044,3 +2044,17 @@ NashDRL and PPO use the same `configs/experiments/small.yaml`, `medium.yaml`, an
 ## 0.9.0 Constrained NashDRL revision
 
 This release introduces a budget-constrained action-feasibility layer for NashDRL. The five-channel Section-4 Actor output is retained; hard budget feasibility is enforced in `nash_drl.routing.BudgetAwareDijkstraMapper` before SUMO execution. The implementation also fixes the LQ P22 rival term and bounds P12 relative to P11.
+
+## Reward regimes for NashDRL vs PPO
+
+A single experiment file contains three reward profiles under `reward`:
+`common`, `nash_drl`, and `ppo`. The SUMO/environment dynamics, map, traffic flow,
+trip sets, and physical cost/time calculations are shared. Only the learning
+objective's reward hyperparameters may differ.
+
+For the piecewise budget reward, a violating vehicle receives `-P`, while the
+same trip without the replacement would receive `-(w_T*T + w_C*C)`. Therefore,
+a violation is individually preferred when `P < w_T*T + w_C*C`. This creates a
+controlled threshold regime: the NashDRL profile uses a high penalty, while the
+PPO profile can use a lower penalty so that sacrifice can be reward-preferred.
+`common` is retained as the algorithm-neutral evaluation metric.

@@ -10,7 +10,7 @@ from typing import Any
 from nash_drl.config import load_yaml
 from nash_drl.data.mock_dataset import MockDataConfig, MockDatasetGenerator, load_problem
 from nash_drl.environment.env import EnvironmentConfig
-from nash_drl.environment.reward import RewardConfig, RewardModel
+from nash_drl.environment.reward import RewardConfig, RewardModel, build_reward_config
 from nash_drl.environment.sumo import SumoConfig
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
 from ppo.models.ppo import PPOActorCritic
@@ -42,15 +42,17 @@ class PPOTrainingRunner:
             raise ValueError("Training dataset contains no vehicle trips")
 
         env_cfg = EnvironmentConfig(**self.config.get("environment", {}))
-        reward_cfg = RewardConfig(**self.config.get("reward", {}))
+        reward_cfg = build_reward_config(self.config, "ppo")
+        benchmark_reward_cfg = build_reward_config(self.config, "common")
         sumo_raw = dict(self.config.get("simulation", {}).get("sumo", {}))
         sumo_raw["seed"] = int(sumo_raw.get("seed", seed))
         sumo_cfg = SumoConfig(**sumo_raw)
         env = NashSUMOTrainingEnvironment(
             problem,
             SumoTrainingEnvironmentConfig(sumo=sumo_cfg, environment=env_cfg),
-            RewardModel(reward_cfg),
+            RewardModel(reward_cfg, profile_name="ppo"),
             DijkstraMapper(),
+            benchmark_reward_model=RewardModel(benchmark_reward_cfg, profile_name="common"),
             output_root=output_dir / "sumo_runs",
             use_gui=bool(raw.get("visualization", False)),
         )
@@ -105,6 +107,9 @@ class PPOTrainingRunner:
             "num_nodes": problem.graph.num_nodes,
             "num_edges": problem.graph.num_edges,
             "trip_counts": {str(v.id): len(v.trips) for v in problem.vehicles},
+            "reward_profile": "ppo",
+            "learning_reward": {"travel_time_weight": reward_cfg.travel_time_weight, "charging_cost_weight": reward_cfg.charging_cost_weight, "budget_penalty": reward_cfg.budget_penalty},
+            "benchmark_reward": {"travel_time_weight": benchmark_reward_cfg.travel_time_weight, "charging_cost_weight": benchmark_reward_cfg.charging_cost_weight, "budget_penalty": benchmark_reward_cfg.budget_penalty},
         }
         (output_dir / "training_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         from nash_drl.visualization.training import plot_training_history

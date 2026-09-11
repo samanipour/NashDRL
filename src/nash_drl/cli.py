@@ -33,13 +33,13 @@ def build_demo_problem():
 
 
 def build_trainer(config: dict | None = None):
-    from nash_drl.environment import EnvironmentConfig, NashEnvironment, RewardConfig, RewardModel
+    from nash_drl.environment import EnvironmentConfig, NashEnvironment, RewardModel, build_reward_config
     from nash_drl.models import ActorNetwork, CriticNetwork, TargetCriticNetwork
     from nash_drl.routing import DijkstraMapper
     from nash_drl.training import NashDRLTrainer, TrainingConfig
     cfg = config or {}
     problem = build_demo_problem()
-    env = NashEnvironment(problem, EnvironmentConfig(**cfg.get("environment", {})), RewardModel(RewardConfig(**cfg.get("reward", {}))))
+    env = NashEnvironment(problem, EnvironmentConfig(**cfg.get("environment", {})), RewardModel(build_reward_config(cfg, "common")))
     state = env.reset()
     f, e = int(state.agent_features.shape[1]), state.csr_map.num_edges
     net = cfg.get("network", {})

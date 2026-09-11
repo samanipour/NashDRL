@@ -1,12 +1,12 @@
 from .env import EnvironmentConfig, NashEnvironment
-from .reward import RewardConfig, RewardModel, RewardResult
+from .reward import RewardConfig, RewardModel, RewardResult, build_reward_config
 from .simulation import SimulationRunResult, SimulationRunner
 from .sumo import SumoConfig, SumoScenario, SumoScenarioBuilder, SumoTrafficSession
 from .sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
 from .sumo import SumoTripResult
 
 __all__ = [
-    "EnvironmentConfig", "NashEnvironment", "RewardConfig", "RewardModel", "RewardResult",
+    "EnvironmentConfig", "NashEnvironment", "RewardConfig", "RewardModel", "RewardResult", "build_reward_config",
     "SumoTrafficSession",
     "SimulationRunResult", "SimulationRunner", "SumoConfig", "SumoScenario", "SumoScenarioBuilder",
     "NashSUMOTrainingEnvironment", "SumoTrainingEnvironmentConfig", "SumoTripResult",

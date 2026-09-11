@@ -62,7 +62,8 @@ class SimulationRunner:
 
         # Attach reproducibility/configuration values to system observations.
         env_cfg = self.config.get("environment", {})
-        reward_cfg = self.config.get("reward", {})
+        from nash_drl.environment.reward import build_reward_config
+        common_reward_cfg = build_reward_config(self.config, "common")
         for row in result["system_rows"]:
             row.update({
                 "simulation_mode": mode,
@@ -76,9 +77,9 @@ class SimulationRunner:
                 "charging_floor_price": env_cfg.get("charging_floor_price", 0.0),
                 "congestion_alpha": env_cfg.get("congestion_alpha", 0.15),
                 "congestion_beta": env_cfg.get("congestion_beta", 4.0),
-                "reward_travel_time_weight": reward_cfg.get("travel_time_weight", 1.0),
-                "reward_charging_cost_weight": reward_cfg.get("charging_cost_weight", 1.0),
-                "reward_budget_penalty": reward_cfg.get("budget_penalty", 100.0),
+                "reward_travel_time_weight": common_reward_cfg.travel_time_weight,
+                "reward_charging_cost_weight": common_reward_cfg.charging_cost_weight,
+                "reward_budget_penalty": common_reward_cfg.budget_penalty,
             })
 
         report_path = None

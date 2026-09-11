@@ -48,6 +48,7 @@ class NashSUMOTrainingEnvironment:
         config: Any,
         reward_model: RewardModel,
         mapper: ActionToPathMapper,
+        benchmark_reward_model: RewardModel | None = None,
         *,
         output_root: str | Path,
         use_gui: bool = False,
@@ -56,6 +57,7 @@ class NashSUMOTrainingEnvironment:
         self.problem = deepcopy(problem)
         self.config = config
         self.reward_model = reward_model
+        self.benchmark_reward_model = benchmark_reward_model
         self.mapper = mapper
         self.output_root = Path(output_root)
         self.use_gui = use_gui
@@ -329,14 +331,28 @@ class NashSUMOTrainingEnvironment:
             charging_costs,
             budgets,
         )
+        benchmark_reward = None
+        if self.benchmark_reward_model is not None:
+            benchmark_reward = self.benchmark_reward_model.compute(
+                travel_times,
+                charging_costs,
+                budgets,
+            )
 
         # Attach per-vehicle reward and hard-constraint outcome to report rows.
         for i, row in enumerate(vehicle_metrics):
             if "inactive" not in row:
                 row["step_reward"] = float(reward.vehicle_rewards[i])
+                row["regular_reward"] = float(reward.regular_rewards[i])
+                row["violation_break_even_penalty"] = float(-reward.regular_rewards[i])
+                row["budget_excess"] = float(reward.budget_excess[i])
+                row["learning_budget_penalty"] = float(self.reward_model.config.budget_penalty)
                 row["hard_constraint_violation"] = bool(reward.budget_violations[i])
                 row["budget_before_trip"] = float(budgets[i])
                 row["budget_after_trip"] = float(self.problem.vehicles[i].remaining_budget or 0.0)
+                if benchmark_reward is not None:
+                    row["benchmark_step_reward"] = float(benchmark_reward.vehicle_rewards[i])
+                    row["benchmark_hard_constraint_violation"] = bool(benchmark_reward.budget_violations[i])
 
         # Enrich SUMO edge telemetry with model parameters.
         edge_by_id = {e.id: e for e in self.problem.graph.edges}
@@ -378,6 +394,10 @@ class NashSUMOTrainingEnvironment:
             agent_done = [True] * self.num_agents
         info = {
             "paths": paths,
+            "reward_profile": getattr(self.reward_model, "profile_name", "unknown"),
+            "benchmark_reward_total": float(benchmark_reward.total_reward) if benchmark_reward is not None else None,
+            "benchmark_vehicle_rewards": benchmark_reward.vehicle_rewards.tolist() if benchmark_reward is not None else None,
+            "benchmark_budget_violations": benchmark_reward.budget_violations.tolist() if benchmark_reward is not None else None,
             "vehicle_metrics": vehicle_metrics,
             "edge_metrics": trip_metrics.edge_metrics if trip_metrics else [],
             "sumo_time_s": float(trip_metrics.sumo_time_s) if trip_metrics else self.sumo_session.current_time(),
@@ -405,4 +425,7 @@ class NashSUMOTrainingEnvironment:
             travel_times=zeros,
             charging_costs=zeros,
             budget_violations=torch.zeros(n, dtype=torch.bool),
+            regular_rewards=zeros.clone(),
+            budgets=zeros.clone(),
+            budget_excess=zeros.clone(),
         )
