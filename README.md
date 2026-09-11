@@ -2058,3 +2058,46 @@ a violation is individually preferred when `P < w_T*T + w_C*C`. This creates a
 controlled threshold regime: the NashDRL profile uses a high penalty, while the
 PPO profile can use a lower penalty so that sacrifice can be reward-preferred.
 `common` is retained as the algorithm-neutral evaluation metric.
+
+
+## 0.10.0 Common-P reward sweep
+
+The medium experiment now supports a controlled **common-
+`P` sweep**. The same budget-violation penalty is applied to both
+NashDRL and PPO for every sweep point; the sweep therefore does not use
+algorithm-specific values of `P`.
+
+Default sweep values are `P = {0, 2, 5, 10, 15, 20, 30}` with 100 episodes per
+algorithm and point. Each point is stored independently under
+`outputs/p_sweep_medium/P_<P>/nash` and `outputs/p_sweep_medium/P_<P>/ppo`.
+
+Run the complete sweep:
+
+```powershell
+python scripts/p_sweep.py --config configs/experiments/medium.yaml --mode mock --episodes 100
+```
+
+Or provide a custom common-`P` set:
+
+```powershell
+python scripts/p_sweep.py --config configs/experiments/medium.yaml --p-values 0,2,5,7.5,10,12.5,15,20,30 --episodes 100
+```
+
+Analyze already-completed sweep points without retraining:
+
+```powershell
+python scripts/analyze_p_sweep.py --root outputs/p_sweep_medium
+```
+
+The analysis writes a mean-per-`P` summary, hypothesis candidate table/JSON, and
+metric-specific comparison figures. For each metric, the `*_by_p.png` figure
+contains one subplot per `P`, and each subplot overlays the NashDRL and PPO
+training curves. Additional figures show the across-`P` mean curves and the
+reward-versus-budget-violation trade-off.
+
+The weak experimental hypothesis is marked true at a sweep point when the
+mean PPO episode reward is greater than NashDRL **and** mean PPO budget
+violations are greater than NashDRL. The strong hypothesis additionally
+requires PPO mean travel time to be no worse. Episode-level hit rates are also
+reported to distinguish a mean effect from an effect caused by a small number
+of episodes.

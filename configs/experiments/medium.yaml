@@ -73,6 +73,11 @@ environment:
   congestion_alpha: 0.15
   congestion_beta: 4.0
   use_model_travel_time: true
+p_sweep:
+  values: [0, 2, 5, 10, 15, 20, 30]
+  episodes: 100
+  mode: mock
+
 reward:
   common:
     travel_time_weight: 1.0
