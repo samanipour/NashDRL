@@ -9,7 +9,7 @@ from torch import Tensor
 from nash_drl.data import Action, NetworkInputs
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment
 from nash_drl.features import StateFeatureExtractor
-from nash_drl.game import AnalyticalNashPolicy
+from nash_drl.game import ConstrainedNashPolicy
 from nash_drl.models import ActorNetwork, CriticNetwork, TargetCriticNetwork
 from nash_drl.routing import ActionToPathMapper
 
@@ -29,7 +29,7 @@ class TrainingConfig:
     exploration_decay_episodes: int = 1000
     reward_scale: float = 1.0
     max_grad_norm: float = 5.0
-    replay_enabled: bool = True
+    replay_enabled: bool = False
     replay_capacity: int = 10000
     replay_batch_size: int = 32
     replay_warmup: int = 32
@@ -40,6 +40,8 @@ class TrainingConfig:
     output_dir: str = "outputs/training"
     save_checkpoints: bool = True
     checkpoint_interval: int = 10
+    budget_constraints_enabled: bool = True
+    constraint_repair_passes: int = 2
 
 
 class NashDRLTrainer:
@@ -73,7 +75,7 @@ class NashDRLTrainer:
         self.config = config
         self.device = torch.device(config.device)
         self.extractor = StateFeatureExtractor()
-        self.nash_policy = AnalyticalNashPolicy()
+        self.nash_policy = ConstrainedNashPolicy()
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=config.actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=config.critic_lr)
         self.update_count = 0
@@ -351,6 +353,8 @@ class NashDRLTrainer:
                     "updates": self.update_count,
                     "exploration_sigma": sigma,
                     "sumo_time_s": float(info.get("sumo_time_s", 0.0) or 0.0),
+                    "constraint_repairs": int(getattr(self.mapper, "last_diagnostics", {}).get("repair_count", 0)),
+                    "constraint_residual_excess_sum": float(sum(getattr(self.mapper, "last_diagnostics", {}).get("residual_budget_excess", []))),
                 }
             )
 

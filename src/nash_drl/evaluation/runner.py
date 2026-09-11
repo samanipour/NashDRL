@@ -12,7 +12,7 @@ from nash_drl.environment.reward import RewardConfig, RewardModel
 from nash_drl.environment.sumo import SumoConfig
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
 from nash_drl.models import ActorNetwork, CriticNetwork, TargetCriticNetwork
-from nash_drl.routing import DijkstraMapper
+from nash_drl.routing import DijkstraMapper, BudgetAwareDijkstraMapper
 from nash_drl.training.checkpoint import load_checkpoint
 from nash_drl.training.trainer import NashDRLTrainer, TrainingConfig
 from nash_drl.evaluation.evaluator import Evaluator
@@ -43,7 +43,7 @@ class EvaluationRunner:
         state_features = 6
         edges = problem.graph.num_edges
         net = self.config.get("network", {})
-        actor = ActorNetwork(state_features, edges, hidden_dim=int(net.get("hidden_dim", 32)), deep_set_dim=int(net.get("deep_set_dim", 64)), hidden_layers=int(net.get("actor_hidden_layers", 4)))
+        actor = ActorNetwork(state_features, edges, hidden_dim=int(net.get("hidden_dim", 32)), deep_set_dim=int(net.get("deep_set_dim", 64)), hidden_layers=int(net.get("actor_hidden_layers", 4)), interaction_coupling_ratio=float(net.get("interaction_coupling_ratio", 0.9)))
         critic = CriticNetwork(state_features, edges, hidden_dim=int(net.get("hidden_dim", 32)), deep_set_dim=int(net.get("deep_set_dim", 64)), hidden_layers=int(net.get("critic_hidden_layers", 4)))
         target = TargetCriticNetwork(critic)
         checkpoint = self.checkpoint_override or self.config.get("evaluation", {}).get("checkpoint") or self.config.get("training", {}).get("checkpoint")
@@ -59,12 +59,17 @@ class EvaluationRunner:
                 environment=EnvironmentConfig(**self.config.get("environment", {})),
             ),
             RewardModel(RewardConfig(**self.config.get("reward", {}))),
-            DijkstraMapper(),
+            BudgetAwareDijkstraMapper(
+                energy_rate_kwh_per_km=float(self.config.get("environment", {}).get("energy_rate_kwh_per_km", 1.0)),
+                charging_overhead=float(self.config.get("environment", {}).get("charging_overhead", 6.0)),
+                charging_fixed_cost=float(self.config.get("environment", {}).get("charging_fixed_cost", 1.0)),
+                charging_floor_price=float(self.config.get("environment", {}).get("charging_floor_price", 0.0)),
+            ),
             output_root=Path(self.config.get("evaluation", {}).get("output_dir", "outputs/evaluation")) / "sumo_runs",
             use_gui=bool(self.config.get("evaluation", {}).get("visualization", False)),
         )
         train_cfg = TrainingConfig(episodes=1, device=self.config.get("training", {}).get("device", "cpu"))
-        trainer = NashDRLTrainer(env, actor, critic, target, DijkstraMapper(), train_cfg)
+        trainer = NashDRLTrainer(env, actor, critic, target, BudgetAwareDijkstraMapper(energy_rate_kwh_per_km=float(self.config.get("environment", {}).get("energy_rate_kwh_per_km", 1.0)), charging_overhead=float(self.config.get("environment", {}).get("charging_overhead", 6.0)), charging_fixed_cost=float(self.config.get("environment", {}).get("charging_fixed_cost", 1.0)), charging_floor_price=float(self.config.get("environment", {}).get("charging_floor_price", 0.0))), train_cfg)
         episodes = int(self.config.get("evaluation", {}).get("episodes", 1))
         output = Path(self.config.get("evaluation", {}).get("output_dir", "outputs/evaluation"))
         results = Evaluator(trainer).run(episodes, output)

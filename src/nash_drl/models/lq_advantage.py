@@ -35,10 +35,8 @@ class LQAdvantage(nn.Module):
         # interaction is weighted before summation over the edge dimension.
         interaction = -(params.p12 * z * sum_other).sum(dim=-1)
 
-        # Rival quadratic penalty. The paper specifies a sum of the
-        # individual rival squared norms:
-        #   - sum_{j != i} ||z_j||^2_{P22,i}
-        # This is NOT ||sum_{j != i} z_j||^2.
+        # Rival quadratic penalty: -sum_{j != i} ||z_j||^2_{P22,i}.
+        # This is a sum of per-rival squared norms, NOT ||sum_j z_j||^2.
         sum_other_square = z.square().sum(dim=-2, keepdim=True) - z.square()
         rival = -(params.p22 * sum_other_square).sum(dim=-1)
 

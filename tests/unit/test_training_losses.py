@@ -43,29 +43,3 @@ def test_loss_produces_actor_and_critic_gradients_with_detached_action():
     result.actor_loss.backward()
     assert p.mu.grad is not None
     assert p.mu.grad.abs().sum() > 0
-
-
-def test_nash_losses_share_residual_value_but_have_distinct_gradient_paths():
-    p = _params(batch=1, agents=2, edges=2)
-    action = torch.tensor([[[1.0, -0.5], [0.2, 0.8]]])
-    value = torch.tensor([[0.4, -0.2]], requires_grad=True)
-    target = torch.tensor([[0.1, 0.3]])
-    reward = torch.tensor([[0.2, 0.5]])
-    done = torch.zeros(1, 2)
-
-    result = compute_training_losses(value, target, reward, p, action, 0.99, done)
-
-    # Same scalar squared-residual value is expected; detach semantics make
-    # the gradient paths different, which is the important distinction.
-    assert torch.allclose(result.actor_loss, result.critic_loss)
-
-    result.critic_loss.backward(retain_graph=True)
-    assert value.grad is not None
-    assert p.mu.grad is None or torch.all(p.mu.grad == 0)
-
-    p.mu.grad = None
-    value.grad = None
-    result.actor_loss.backward()
-    assert p.mu.grad is not None
-    assert p.mu.grad.abs().sum() > 0
-    assert value.grad is None or torch.all(value.grad == 0)

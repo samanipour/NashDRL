@@ -14,7 +14,7 @@ from nash_drl.environment.reward import RewardConfig, RewardModel
 from nash_drl.environment.sumo import SumoConfig
 from nash_drl.environment.sumo_training import NashSUMOTrainingEnvironment, SumoTrainingEnvironmentConfig
 from nash_drl.models import ActorNetwork, CriticNetwork, TargetCriticNetwork
-from nash_drl.routing import DijkstraMapper
+from nash_drl.routing import DijkstraMapper, BudgetAwareDijkstraMapper
 from nash_drl.utils.seeding import seed_everything
 
 from .trainer import NashDRLTrainer, TrainingConfig
@@ -46,11 +46,22 @@ class TrainingRunner:
         sumo_raw = dict(self.config.get("simulation", {}).get("sumo", {}))
         sumo_raw["seed"] = int(sumo_raw.get("seed", seed))
         sumo_cfg = SumoConfig(**sumo_raw)
+        mapper = (
+            BudgetAwareDijkstraMapper(
+                energy_rate_kwh_per_km=env_cfg.energy_rate_kwh_per_km,
+                charging_overhead=env_cfg.charging_overhead,
+                charging_fixed_cost=env_cfg.charging_fixed_cost,
+                charging_floor_price=env_cfg.charging_floor_price,
+                max_repair_passes=int(training_cfg_raw.get("constraint_repair_passes", 2)),
+            )
+            if bool(training_cfg_raw.get("budget_constraints_enabled", True))
+            else DijkstraMapper()
+        )
         env = NashSUMOTrainingEnvironment(
             problem,
             SumoTrainingEnvironmentConfig(sumo=sumo_cfg, environment=env_cfg),
             RewardModel(reward_cfg),
-            DijkstraMapper(),
+            mapper,
             output_root=output_dir / "sumo_runs",
             use_gui=bool(training_cfg_raw.get("visualization", False)),
         )
@@ -62,6 +73,7 @@ class TrainingRunner:
             hidden_dim=int(net_cfg.get("hidden_dim", 32)),
             deep_set_dim=int(net_cfg.get("deep_set_dim", 64)),
             hidden_layers=int(net_cfg.get("actor_hidden_layers", 4)),
+            interaction_coupling_ratio=float(net_cfg.get("interaction_coupling_ratio", 0.9)),
         )
         critic = CriticNetwork(
             f, e,
@@ -73,7 +85,7 @@ class TrainingRunner:
         allowed = {field.name for field in __import__("dataclasses").fields(TrainingConfig)}
         train_values = {k: v for k, v in training_cfg_raw.items() if k in allowed}
         train_cfg = TrainingConfig(**train_values)
-        trainer = NashDRLTrainer(env, actor, critic, target, DijkstraMapper(), train_cfg)
+        trainer = NashDRLTrainer(env, actor, critic, target, mapper, train_cfg)
 
         all_steps: list[dict[str, Any]] = []
         all_vehicles: list[dict[str, Any]] = []

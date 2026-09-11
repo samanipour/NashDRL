@@ -33,7 +33,7 @@ def encode_agent_features(
     rows: list[list[float]] = []
     for v in vehicles:
         rows.append([
-            float(v.current_node or 0) / node_scale,
+            float(v.current_node if v.current_node is not None else 0) / node_scale,
             float(v.next_destination) / node_scale if v.trips else 0.0,
             float(v.final_destination) / node_scale if v.trips else 0.0,
             float(v.remaining_trip_count) / trip_scale,

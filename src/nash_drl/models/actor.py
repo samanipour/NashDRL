@@ -70,6 +70,7 @@ class ActorNetwork(nn.Module):
         hidden_layers: int = 4,
         deep_set_hidden_layers: int = 2,
         positivity_epsilon: float = 1e-6,
+        interaction_coupling_ratio: float = 0.9,
     ) -> None:
         super().__init__()
         if agent_feature_dim <= 0:
@@ -78,6 +79,8 @@ class ActorNetwork(nn.Module):
             raise ValueError("num_edges must be positive")
         if positivity_epsilon <= 0:
             raise ValueError("positivity_epsilon must be positive")
+        if not 0.0 < interaction_coupling_ratio < 1.0:
+            raise ValueError("interaction_coupling_ratio must be in (0,1)")
 
         self.agent_feature_dim = agent_feature_dim
         self.num_edges = num_edges
@@ -85,6 +88,7 @@ class ActorNetwork(nn.Module):
         self.deep_set_dim = deep_set_dim
         self.hidden_layers = hidden_layers
         self.positivity_epsilon = positivity_epsilon
+        self.interaction_coupling_ratio = interaction_coupling_ratio
 
         self.deep_sets = DeepSetEncoder(
             feature_dim=agent_feature_dim,
@@ -121,6 +125,10 @@ class ActorNetwork(nn.Module):
 
         p11 = strictly_positive(p11_raw, self.positivity_epsilon)
         p22 = strictly_positive(p22_raw, self.positivity_epsilon)
+        # Bound the interaction curvature relative to self-curvature so that
+        # |P12_i| < 2*rho*P11_i with rho in (0,1). This avoids arbitrary
+        # cross-agent coupling that can destroy local concavity/stability.
+        p12 = (2.0 * self.interaction_coupling_ratio * p11) * torch.tanh(p12)
 
         # `n` is retained to make the intended focal-agent dimension explicit
         # for the unbatched API and to guard accidental scalar outputs.

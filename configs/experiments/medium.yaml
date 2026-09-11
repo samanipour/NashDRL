@@ -12,7 +12,7 @@ training:
   exploration_decay_episodes: 220
   reward_scale: 0.01
   max_grad_norm: 5.0
-  replay_enabled: true
+  replay_enabled: false
   replay_capacity: 10000
   replay_batch_size: 32
   replay_warmup: 32
@@ -23,6 +23,8 @@ training:
   output_dir: outputs/training_medium
   visualization: false
   save_checkpoints: true
+  budget_constraints_enabled: true
+  constraint_repair_passes: 2
   checkpoint_interval: 25
 
 ppo:
@@ -45,6 +47,14 @@ ppo:
   visualization: false
   save_checkpoints: true
   checkpoint_interval: 25
+
+network:
+  hidden_dim: 32
+  deep_set_dim: 64
+  actor_hidden_layers: 4
+  critic_hidden_layers: 4
+  deep_set_hidden_layers: 2
+  interaction_coupling_ratio: 0.90
 
 ppo_network:
   hidden_dim: 64

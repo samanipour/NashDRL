@@ -31,20 +31,22 @@ def test_lq_advantage_batch_shape():
     assert output.shape == (b, n)
 
 
-def test_lq_advantage_uses_sum_of_rival_squared_norms_not_squared_sum():
-    # One edge is enough to distinguish:
-    # z_1 = 1, z_2 = -1 => sum_j z_j = 0, but sum_j z_j^2 = 2.
+def test_lq_rival_term_is_sum_of_individual_squares():
     params = ActorOutput(
-        mu=torch.zeros(3, 1),
-        p11=torch.zeros(3, 1),
-        p12=torch.zeros(3, 1),
-        p22=torch.ones(3, 1),
-        psi=torch.zeros(3, 1),
+        mu=torch.zeros(2, 1),
+        p11=torch.ones(2, 1),
+        p12=torch.zeros(2, 1),
+        p22=torch.ones(2, 1),
+        psi=torch.zeros(2, 1),
     )
-    action = torch.tensor([[0.0], [1.0], [-1.0]])
-    output = LQAdvantage()(params, action)
-    # Agent 0 sees rivals +1 and -1 -> -2.
-    # Agent 1 sees rivals 0 and -1 -> -1.
-    # Agent 2 sees rivals 0 and +1 -> -1.
-    expected = torch.tensor([-2.0, -1.0, -1.0])
-    assert torch.allclose(output, expected)
+    # z1=1, z2=2. Rival penalty for agent 0 is -(2^2)=-4.
+    # If squared-sum were used it would still be -(2^2) here;
+    # use 2D with three agents to distinguish the formulas.
+    params = ActorOutput(
+        mu=torch.zeros(3, 1), p11=torch.ones(3, 1), p12=torch.zeros(3, 1),
+        p22=torch.ones(3, 1), psi=torch.zeros(3, 1)
+    )
+    action=torch.tensor([[0.0],[1.0],[2.0]])
+    out=LQAdvantage()(params, action)
+    # agent 0 has rivals 1,2 => -(1^2+2^2)=-5; own is zero.
+    assert torch.allclose(out[0], torch.tensor(-5.0))

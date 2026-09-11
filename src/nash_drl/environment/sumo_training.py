@@ -160,6 +160,14 @@ class NashSUMOTrainingEnvironment:
             max_budget=max((v.budget for v in self.problem.vehicles), default=1.0),
             max_speed_kmh=max((v.free_flow_speed_kmh for v in self.problem.vehicles), default=1.0),
         )
+        remaining_budgets = torch.tensor(
+            [float(v.remaining_budget if v.remaining_budget is not None else v.budget) for v in self.problem.vehicles],
+            dtype=torch.float32,
+        )
+        active_mask = torch.tensor(
+            [float(v.current_trip_index < len(v.trips)) for v in self.problem.vehicles],
+            dtype=torch.float32,
+        )
         return GlobalState(
             csr_map=self.csr,
             agent_features=features,
@@ -167,6 +175,8 @@ class NashSUMOTrainingEnvironment:
             current_nodes=current_nodes,
             next_destinations=next_destinations,
             final_destinations=final_destinations,
+            remaining_budgets=remaining_budgets,
+            active_mask=active_mask,
             flow_time_s=flow_time_s,
             edge_flow_source="sumo",
         )

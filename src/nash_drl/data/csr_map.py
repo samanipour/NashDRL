@@ -77,3 +77,15 @@ class CSRMap:
         start = int(self.row_ptr[node].item())
         end = int(self.row_ptr[node + 1].item())
         return self.edge_ids[start:end]
+
+    def edge_by_id(self, edge_id: int):
+        """Return the domain edge metadata by stable edge id."""
+        idx = (self.edge_ids == int(edge_id)).nonzero(as_tuple=False)
+        if idx.numel() == 0:
+            raise KeyError(f"Unknown edge id: {edge_id}")
+        pos = int(idx[0].item())
+        # edge_from + col_idx identify endpoints; length/capacity are indexed by edge id.
+        from nash_drl.domain import Edge
+        source = int(self.edge_from[edge_id].item())
+        destination = int(self.col_idx[pos].item())
+        return Edge(edge_id, source, destination, float(self.edge_len[edge_id]), float(self.edge_cap[edge_id]))

@@ -22,6 +22,8 @@ class GlobalState:
     current_nodes: Tensor  # [N]
     next_destinations: Tensor  # [N]
     final_destinations: Tensor  # [N]
+    remaining_budgets: Tensor | None = None  # [N], environment-side semantic state
+    active_mask: Tensor | None = None  # [N], 1 for vehicles with remaining trips
     flow_time_s: float = 0.0
     edge_flow_source: str = "unknown"
 
@@ -33,6 +35,10 @@ class GlobalState:
             raise ValueError(f"edge_flow must be [E], got {self.edge_flow.shape}")
         if self.edge_flow.shape[0] != self.csr_map.num_edges:
             raise ValueError("edge_flow length must equal number of graph edges")
+        if self.remaining_budgets is not None and (self.remaining_budgets.ndim != 1 or self.remaining_budgets.shape[0] != n):
+            raise ValueError("remaining_budgets must have shape [N]")
+        if self.active_mask is not None and (self.active_mask.ndim != 1 or self.active_mask.shape[0] != n):
+            raise ValueError("active_mask must have shape [N]")
         for name, tensor in (
             ("current_nodes", self.current_nodes),
             ("next_destinations", self.next_destinations),
